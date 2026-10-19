@@ -67,6 +67,7 @@ def train_epoch(model, loader, optimizer, scaler, *, device, recipe, epoch, min_
     iterator = iter(loader)
     batches_seen, count, total_loss = 0, 0, 0.0
     labels, predicted = [], []
+    updates, skipped = 0, 0
     started = time.perf_counter()
     while group := list(itertools.islice(iterator, recipe["accumulation"])):
         rate = learning_rate(epoch + batches_seen / len(loader), recipe, min_lr)
@@ -93,14 +94,19 @@ def train_epoch(model, loader, optimizer, scaler, *, device, recipe, epoch, min_
             count += len(images)
             total_loss += loss.detach().item() * len(images)
             batches_seen += 1
+        scale_before = scaler.get_scale()
         scaler.step(optimizer)
         scaler.update()
+        skipped += int(scaler.get_scale() < scale_before)
+        updates += 1
     if not count:
         raise ValueError("Empty training loader")
     if device.type == "cuda":
         torch.cuda.synchronize(device)
     result = {"loss": total_loss / count, "lr": rate,
-              "seconds": time.perf_counter() - started, "samples": count}
+              "seconds": time.perf_counter() - started, "samples": count,
+              "optimizer_steps": updates - skipped, "skipped_steps": skipped,
+              "amp_scale": scaler.get_scale()}
     if not pretrain:
         result.update(classification_metrics(labels, predicted, num_classes))
     return result
