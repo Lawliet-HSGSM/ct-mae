@@ -202,7 +202,7 @@ class OrganClassifier(nn.Module):
         self.head = nn.Linear(config["encoder_dim"], num_classes)
         # Identical initial heads for all three downstream experiments.
         with torch.random.fork_rng(devices=[]):
-            torch.manual_seed(seed)
+            torch.random.default_generator.manual_seed(seed)
             nn.init.trunc_normal_(self.head.weight, std=0.02)
             nn.init.zeros_(self.head.bias)
         self.frozen = frozen

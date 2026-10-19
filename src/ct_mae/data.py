@@ -65,7 +65,9 @@ class OrganDataset(Dataset):
         if self.transform is not None:
             # Per-image/epoch randomness also survives a change in batch size or worker order.
             with torch.random.fork_rng(devices=[]):
-                torch.manual_seed(self.seed + self.epoch * len(self.images) + index)
+                torch.random.default_generator.manual_seed(
+                    self.seed + self.epoch * len(self.images) + index,
+                )
                 image = self.transform(image)
         item = {"image": image, "index": index}
         if self.labels is not None:
