@@ -36,6 +36,8 @@ Hai script cuối là bản đóng gói source/tests để submit qua **Kaggle M
 GPU và Internet bật. Dữ liệu được tải trực tiếp từ nguồn chính thức và kiểm MD5.
 W&B dùng project `ct-mae`, đọc secret label `WANDB_API_KEY_THANG` đã cấp quyền trong Kaggle.
 Chỉ label được lưu trong config; giá trị key không nằm trong repo hay script đóng gói.
+Script production mới tự chạy và xác minh smoke trước khi bắt đầu full recipe;
+không cần submit hai job GPU riêng. Bản `--smoke` chỉ chạy chẩn đoán.
 
 Windows dùng PyTorch CPU trong venv để kiểm thử. Notebook giữ CUDA runtime của Kaggle,
 ghi phiên bản thực tế vào `environment.json` và metadata từng run.

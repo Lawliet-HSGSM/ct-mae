@@ -4,6 +4,8 @@ import argparse
 import base64
 import hashlib
 import io
+import json
+import math
 import subprocess
 import zipfile
 from pathlib import Path
@@ -82,24 +84,47 @@ _ = OrganDataset(np.zeros((1,128,128), dtype=np.uint8), augment=True)[0]
 assert torch.equal(before, torch.cuda.get_rng_state())
 command = [sys.executable, "-m", "ct_mae.run", "--stage", __STAGE__,
            "--data-dir", "/kaggle/temp/ct-mae-data", "--output", str(output)]
+from ct_mae.kaggle import verify_runs
+stages = ["scratch", "pretrain", "linear", "finetune"] if __STAGE__ == "all" else [__STAGE__]
+if not SMOKE and not RESUME:
+    subprocess.run([*command, "--smoke"], check=True, cwd=source)
+    smoke_proof = verify_runs(output / "smoke", api, entity, config["wandb"]["project"],
+                              stages, smoke=True)
+    print("SMOKE GATE PASSED", json.dumps(smoke_proof), flush=True)
 if SMOKE: command.append("--smoke")
 if RESUME: command.append("--resume")
 subprocess.run(command, check=True, cwd=source)
-proof = []
-for stage in ("scratch", "pretrain", "linear", "finetune"):
-    path = experiment / stage / "run.json"
-    if not path.exists(): continue
-    record = json.loads(path.read_text())
-    remote = api.run(f"{entity}/{config['wandb']['project']}/{record['wandb_run_id']}")
-    assert remote.summary.get("preflight/ok") == 1
-    assert remote.summary.get("status") == record["status"]
-    proof.append({"stage": stage, "url": remote.url, "status": remote.summary.get("status"),
-                  "last_validation_loss": record["history"][-1]["val"]["loss"],
-                  "peak_vram_bytes": max(row["resource"]["peak_vram_bytes"]
-                                         for row in record["history"])})
-(experiment / "wandb_verification.json").write_text(json.dumps(proof, indent=2))
+proof = verify_runs(experiment, api, entity, config["wandb"]["project"], stages, smoke=SMOKE)
 print("WANDB VERIFIED", json.dumps(proof), flush=True)
 '''
+
+
+def verify_runs(experiment: Path, api, entity: str, project: str, stages: list[str],
+                *, smoke: bool) -> list[dict]:
+    """Require successful training and remote W&B evidence before continuing the job."""
+    proof = []
+    expected = "smoke_completed" if smoke else "completed"
+    for stage in stages:
+        record = json.loads((experiment / stage / "run.json").read_text("utf-8"))
+        if record["status"] != expected or not record["history"]:
+            raise RuntimeError(f"{stage}: incomplete training")
+        history = record["history"]
+        if any(not math.isfinite(row[split]["loss"])
+               for row in history for split in ("train", "val")):
+            raise RuntimeError(f"{stage}: non-finite loss")
+        if sum(row["train"]["optimizer_steps"] for row in history) < 1:
+            raise RuntimeError(f"{stage}: no successful optimizer updates")
+        remote = api.run(f"{entity}/{project}/{record['wandb_run_id']}")
+        if remote.summary.get("preflight/ok") != 1 or remote.summary.get("status") != expected:
+            raise RuntimeError(f"{stage}: W&B has not confirmed the completed run")
+        proof.append({
+            "stage": stage, "url": remote.url, "status": expected,
+            "last_validation_loss": history[-1]["val"]["loss"],
+            "train_seconds": sum(row["train"]["seconds"] for row in history),
+            "peak_vram_bytes": max(row["resource"]["peak_vram_bytes"] for row in history),
+        })
+    (experiment / "wandb_verification.json").write_text(json.dumps(proof, indent=2), "utf-8")
+    return proof
 
 
 def build_script(destination: Path, *, stage: str = "all", smoke: bool = False,
@@ -139,7 +164,6 @@ def main():
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
-    import json
     print(json.dumps(build_script(args.output, stage=args.stage, smoke=args.smoke,
                                    resume=args.resume)))
 

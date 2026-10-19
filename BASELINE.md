@@ -51,6 +51,9 @@ smoke có group/output/config riêng, dùng cùng kiến trúc nhưng chỉ 2 ep
 tối đa 512 ảnh train và 128 validation, không đánh giá test chính thức.
 Script chạy unit tests và kiểm tra CUDA RNG trước khi train; sau đó xác minh
 summary của các run trên W&B API. `wandb_verification.json` lưu bằng chứng này.
+Job đầy đủ mới tự chạy smoke trước trong cùng phiên GPU. Chỉ tiếp tục full recipe
+khi tất cả stage smoke có loss hữu hạn, optimizer đã cập nhật và W&B xác nhận
+hoàn tất. Job resume dùng checkpoint đã có và bỏ lượt smoke mới này.
 
 Mỗi epoch ghi `last.pt` và metadata. Best weights lưu riêng. Mỗi 50 epochs và
 cuối stage đồng bộ artifact gồm last/best/metadata để resume qua phiên Kaggle.
