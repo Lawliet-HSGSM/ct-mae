@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>OrganAMNIST · Dataset Explorer</title>
+  <style>__STYLE__</style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">CT MAE / KHÁM PHÁ DỮ LIỆU</p>
+    <h1>Nhìn dữ liệu trước khi chọn input.</h1>
+    <p class="intro">OrganAMNIST — ảnh CT axial đã crop quanh cơ quan. Các ảnh có nhãn supervised;
+      khi pretrain SSL, ta chỉ bỏ qua nhãn cơ quan.</p>
+    <div class="facts" id="facts"></div>
+  </header>
+
+  <section aria-labelledby="viewer-title">
+    <div class="section-head"><h2 id="viewer-title">01 / Cùng một mẫu, nhiều độ phân giải</h2>
+      <span class="badge">Pixel gốc · không autocontrast</span></div>
+    <div class="controls">
+      <label>Split<select id="split-select"><option value="train">Train</option>
+        <option value="val">Validation</option><option value="test">Test</option></select></label>
+      <label>Cơ quan<select id="class-select"></select></label>
+      <label>Mẫu minh họa<select id="sample-select"></select></label>
+      <label>Cách hiển thị<select id="view-select"><option value="equal">Cùng khung 224 px</option>
+        <option value="native">Kích thước pixel gốc (1:1)</option></select></label>
+    </div>
+    <div class="viewer-meta"><p id="selection" aria-live="polite"></p>
+      <div><button id="previous" type="button" aria-label="Mẫu trước">← Trước</button>
+        <button id="next" type="button" aria-label="Mẫu tiếp theo">Sau →</button></div></div>
+    <div id="image-grid" class="image-grid"></div>
+    <p class="caption">Cùng index theo quy trình phát hành MedMNIST+; chương trình đã đối chiếu
+      nhãn theo từng index giữa các bản tải về. Các ảnh được resize từ crop nguồn, không phải
+      tập ảnh mới. Phóng to khi xem không làm thay đổi dữ liệu đầu vào.</p>
+  </section>
+
+  <section aria-labelledby="size-title">
+    <h2 id="size-title">02 / Kích thước, dung lượng và độ đồng đều</h2>
+    <div class="table-wrap"><table><thead><tr><th>Bản dữ liệu</th><th>Pixel / ảnh</th>
+      <th>Cạnh so với 28</th><th>Pixel so với 28</th><th>uint8 / ảnh</th>
+      <th>float32 / ảnh</th><th>File tải về</th><th>MD5</th></tr></thead>
+      <tbody id="size-table"></tbody></table></div>
+    <p class="note">Trong mỗi bản, mọi ảnh ở cả ba split đều có cùng H×W và một kênh xám.
+      Đây là kích thước sau xử lý. Gói dữ liệu không cung cấp bounding box gốc, spacing hay
+      kích thước vật lý theo từng ảnh, nên không suy ra được mm/pixel hoặc độ lớn thật của cơ quan.</p>
+    <p id="available-sizes" class="caption"></p>
+  </section>
+
+  <section aria-labelledby="stats-title">
+    <h2 id="stats-title">03 / Thống kê từ toàn bộ mảng ảnh</h2>
+    <div class="table-wrap"><table><thead><tr><th>Bản / split</th><th>Shape lưu trữ</th>
+      <th>Ảnh có nhãn</th><th>Dtype</th><th>Min–max</th><th>Mean</th><th>Std</th>
+      <th>p01 / p50 / p99</th><th>Pixel = 0</th><th>Ảnh uint8 trong RAM</th></tr></thead>
+      <tbody id="stats-table"></tbody></table></div>
+    <p class="caption">Mean, std và histogram được tính từ mọi pixel, không chỉ các ảnh minh họa.
+      Các giá trị là thang 0–255. Nếu sau này chọn chuẩn hóa bằng mean/std, chỉ fit trên train.</p>
+    <div id="warnings" role="status"></div>
+  </section>
+
+  <section aria-labelledby="labels-title">
+    <h2 id="labels-title">04 / Nhãn supervised và phân bố lớp</h2>
+    <p>Mỗi ảnh có một nhãn cơ quan. Bảng này đếm trực tiếp nhãn trong file; các độ phân giải
+      dùng cùng mẫu khi kiểm tra alignment đạt.</p>
+    <div class="table-wrap"><table><thead><tr><th>ID</th><th>Cơ quan</th><th>Train</th>
+      <th>Validation</th><th>Test</th><th>Tỷ lệ trong train</th></tr></thead>
+      <tbody id="class-table"></tbody></table></div>
+  </section>
+
+  <footer>
+    <p><strong>Điểm chưa chốt:</strong> resolution cho model, patch size, normalization,
+      augmentation và tỷ lệ nhãn downstream. Báo cáo này giữ nguyên các array chính thức.</p>
+    <p>Những ảnh đóng gói trong viewer là mẫu phân tầng có seed cố định;
+      <span id="sample-note"></span> Có thể sinh lại bằng CLI với seed hoặc số mẫu khác.</p>
+    <p>Nguồn: <a href="https://medmnist.com/" target="_blank" rel="noopener">MedMNIST</a> ·
+      <a href="https://zenodo.org/records/10519652" target="_blank" rel="noopener">Zenodo 10519652</a> ·
+      <a href="https://github.com/MedMNIST/MedMNIST/blob/main/on_medmnist_plus.md"
+        target="_blank" rel="noopener">Quy trình tạo MedMNIST+</a>. Dataset: CC BY 4.0.</p>
+  </footer>
+</main>
+<script type="application/json" id="dataset">__DATA__</script>
+<script>__SCRIPT__</script>
+</body>
+</html>
