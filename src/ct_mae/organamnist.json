@@ -1,0 +1,17 @@
+{
+  "name": "OrganAMNIST",
+  "record": "https://zenodo.org/records/10519652",
+  "metadata_source": "https://github.com/MedMNIST/MedMNIST/blob/main/medmnist/info.py",
+  "generation_source": "https://github.com/MedMNIST/MedMNIST/blob/main/on_medmnist_plus.md",
+  "license": "CC BY 4.0",
+  "metadata_version": "3.0.2",
+  "expected_samples": {"train": 34561, "val": 6491, "test": 17778},
+  "source_scans": {"train": 115, "val": 16, "test": 70},
+  "labels": ["bladder", "femur-left", "femur-right", "heart", "kidney-left", "kidney-right", "liver", "lung-left", "lung-right", "pancreas", "spleen"],
+  "assets": {
+    "28": {"filename": "organamnist.npz", "bytes": 38247708, "md5": "68e3f8846a6bd62f0c9bf841c0d9eacc"},
+    "64": {"filename": "organamnist_64.npz", "bytes": 200383427, "md5": "2dcccc29b88e6da5a01161ef20cda288"},
+    "128": {"filename": "organamnist_128.npz", "bytes": 707925571, "md5": "eeae80d0a227a8d099027e1b3cfd3b60"},
+    "224": {"filename": "organamnist_224.npz", "bytes": 1803859544, "md5": "50747347e05c87dd3aaf92c49f9f3170"}
+  }
+}
