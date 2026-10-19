@@ -57,7 +57,8 @@ def save_input_preview(archive: Path, manifest: dict, config: dict, path: Path) 
     _, mask, _ = random_masking(patches, config["model"]["mask_ratio"], noise)
     masked = target * (1 - pixel_mask(mask, config["model"]))
     image_grid([raw[:, 0], target[:, 0], masked[:, 0]],
-               ["Original", "Affine target", "75% masked input"], path,
+               ["Original", "Affine target", f"{config['model']['mask_ratio']:.0%} masked input"],
+               path,
                "Real train samples: light augmentation before masking",
                [f"{METADATA['labels'][labels[index]]}\ntrain #{index}" for index in selected])
 

@@ -16,5 +16,5 @@
     "finetune": {"epochs": 100, "lr": 0.0003, "batch_size": 32, "accumulation": 2, "warmup_epochs": 5, "betas": [0.9, 0.999], "weight_decay": 0.05}
   },
   "training": {"min_lr": 0.000001, "adam_eps": 0.00000001, "amp": true, "num_workers": 2, "checkpoint_interval": 50, "preview_interval": 10},
-  "wandb": {"project": "ct-mae", "entity": null, "mode": "online"}
+  "wandb": {"project": "ct-mae", "entity": null, "mode": "online", "secret_label": "WANDB_API_KEY_THANG"}
 }

@@ -6,12 +6,15 @@ API reference: https://github.com/wandb/wandb/blob/main/wandb/sdk/wandb_init.py
 import os
 from pathlib import Path
 
+from ct_mae.config import config_digest
+
 
 class RunTracker:
     def __init__(self, config: dict, stage: str, directory: Path, *, run_id: str | None = None,
                  smoke: bool = False):
         self.run = None
         self.id, self.url = run_id, None
+        self.artifact_name = f"ct-mae-{config_digest(config)[:12]}-{stage}-resume"
         settings = config["wandb"]
         if settings["mode"] == "disabled":
             return
@@ -20,10 +23,12 @@ class RunTracker:
         if settings["mode"] == "online" and not os.environ.get("WANDB_API_KEY"):
             try:
                 from kaggle_secrets import UserSecretsClient
-                os.environ["WANDB_API_KEY"] = UserSecretsClient().get_secret("WANDB_API_KEY")
+                os.environ["WANDB_API_KEY"] = UserSecretsClient().get_secret(
+                    settings["secret_label"],
+                )
             except Exception:
                 raise RuntimeError(
-                    "Enable the WANDB_API_KEY Kaggle Secret for this notebook before training"
+                    f"Enable the {settings['secret_label']} Kaggle Secret before training"
                 ) from None
         self.run = wandb.init(
             project=settings["project"], entity=settings["entity"], mode=settings["mode"],
@@ -57,7 +62,7 @@ class RunTracker:
         if self.run is None:
             return
         import wandb
-        artifact = wandb.Artifact(f"{self.run.id}-resume", type="checkpoint",
+        artifact = wandb.Artifact(self.artifact_name, type="checkpoint",
                                  metadata={"completed_epoch": epoch})
         for filename in ("last.pt", "best.pt", "run.json"):
             artifact.add_file(str(directory / filename), name=filename)
