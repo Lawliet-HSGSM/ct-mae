@@ -39,3 +39,24 @@ def test_report_displays_logged_metrics_only_for_completed_full_runs(tmp_path):
     (stage / "run.json").write_text(json.dumps(metadata))
     build_report(tmp_path, config)
     assert "37.50%" in (tmp_path / "training_report.html").read_text("utf-8")
+
+
+def test_smoke_report_distinguishes_actual_samples_from_the_full_protocol(tmp_path):
+    from ct_mae.run import diagnostic_config
+
+    config = diagnostic_config(load_config())
+    for stage in ("pretrain", "scratch", "linear", "finetune"):
+        directory = tmp_path / stage
+        directory.mkdir()
+        (directory / "run.json").write_text(json.dumps({
+            "stage": stage, "status": "smoke_completed", "smoke": True,
+            "config": config, "recipe": config["stages"][stage], "history": [],
+            "completed_epochs": 2, "train_samples": 512, "val_samples": 128,
+        }))
+    build_report(tmp_path, config)
+    report = (tmp_path / "training_report.md").read_text("utf-8")
+    assert "SMOKE" in report
+    assert "| MAE pretraining | 512 | 128 |" in report
+    assert "| Supervised baseline | 512 | 128 |" in report
+    assert "SSL dùng 34.561 ảnh train" not in report
+    assert "không đánh giá test" in report

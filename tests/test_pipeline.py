@@ -1,11 +1,12 @@
 import copy
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 import torch
 
 from ct_mae.config import load_config
-from ct_mae.pipeline import evaluate_stage, run_stage
+from ct_mae.pipeline import build_model, evaluate_stage, run_stage
 
 torch.set_num_threads(2)
 
@@ -63,3 +64,48 @@ def test_both_transfer_experiments_load_identical_best_ssl_weights(tmp_path):
     finetune = run_stage("finetune", config, archive, manifest, output, torch.device("cpu"))
     assert linear["ssl_checkpoint_sha256"] == finetune["ssl_checkpoint_sha256"]
     assert linear["parameters"]["trainable"] < finetune["parameters"]["trainable"]
+
+
+def test_transfer_requires_the_completed_pretraining_budget(tmp_path):
+    config, archive, manifest = experiment_fixture(tmp_path)
+    output = tmp_path / "experiment"
+    run_stage("pretrain", config, archive, manifest, output,
+              torch.device("cpu"), stop_after_epoch=1)
+    for stage in ("linear", "finetune"):
+        with pytest.raises(ValueError, match="completed pretraining"):
+            build_model(stage, config, output, torch.device("cpu"))
+
+
+def test_wandb_resume_accepts_changed_runtime_metadata(tmp_path, monkeypatch):
+    from wandb.sdk.wandb_config import Config
+
+    import ct_mae.pipeline as pipeline
+
+    shared_config = Config()
+
+    class LocalTracker:
+        id, url = "local-resume-test", None
+
+        def __init__(self, *args, **kwargs):
+            self.run = SimpleNamespace(config=shared_config)
+
+        def log_epoch(self, *args):
+            pass
+
+        def checkpoint(self, *args):
+            pass
+
+        def finish(self, *args):
+            pass
+
+    config, archive, manifest = experiment_fixture(tmp_path)
+    output = tmp_path / "experiment"
+    monkeypatch.setattr(pipeline, "RunTracker", LocalTracker)
+    monkeypatch.setattr(pipeline, "environment_info", lambda _: {"gpu": "P100"})
+    run_stage("scratch", config, archive, manifest, output,
+              torch.device("cpu"), stop_after_epoch=1)
+    monkeypatch.setattr(pipeline, "environment_info", lambda _: {"gpu": "T4"})
+    completed = run_stage("scratch", config, archive, manifest, output,
+                          torch.device("cpu"), resume=True)
+    assert completed["status"] == "completed"
+    assert shared_config["environment"] == {"gpu": "T4"}

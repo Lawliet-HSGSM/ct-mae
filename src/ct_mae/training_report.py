@@ -40,8 +40,8 @@ def configuration_rows(config: dict) -> list[dict]:
         ),
         (
             "Ngân sách nhãn",
-            f"{config['dataset']['labeled_count']} ảnh train, khoảng 5%",
-            "MAE dùng toàn bộ ảnh train; phân loại dùng chung một tập con có nhãn.",
+            f"{config['dataset']['labeled_count']} ảnh train trong protocol đầy đủ",
+            "Protocol đầy đủ: MAE dùng toàn bộ ảnh train; phân loại dùng chung một tập con.",
             "Đo hiệu quả chuyển giao trong điều kiện ít nhãn.",
             "Full labeled validation được giữ riêng; chi phí nhãn validation không tính trong 5%.",
             "Thiết kế project",
@@ -327,18 +327,43 @@ def build_report(output: Path, config: dict) -> Path:
         blocks.append(f"<section><h2>{html.escape(title)}</h2>{web}</section>")
         markdown.append(f"## {title}\n\n{text}")
 
+    size, patch = config["model"]["image_size"], config["model"]["patch_size"]
     summary = (
-        "OrganAMNIST 128×128 · patch 8×8 · asymmetric MAE · seed "
+        f"OrganAMNIST {size}×{size} · patch {patch}×{patch} · asymmetric MAE · seed "
         + str(config["seed"])
         + ". Các giá trị chưa chạy là recipe dự kiến; kết quả chỉ lấy từ run đã ghi nhận."
     )
+    smoke = config.get("run_kind") == "smoke" or any(run.get("smoke") for run in runs.values())
+    if smoke:
+        summary += (" SMOKE: chạy chẩn đoán trên tập nhỏ, không đánh giá test "
+                    "hoặc suy luận hiệu quả SSL.")
     section("Mục tiêu và trạng thái", f"<p>{html.escape(summary)}</p>", summary)
+    subset_path = output / "subset.json"
+    subset = json.loads(subset_path.read_text("utf-8")) if subset_path.exists() else {}
+    counts = subset.get("split_counts", METADATA["expected_samples"])
+    labeled = config["dataset"]["labeled_count"]
     protocol = (
-        "SSL dùng 34.561 ảnh train và bỏ qua nhãn. Ba nhánh phân loại dùng chung "
-        f"{config['dataset']['labeled_count']} ảnh có nhãn. Validation 6.491 và test 17.778 "
-        "giữ nguyên. Ngân sách 5% chỉ áp dụng cho nhãn train. Một seed cho kết quả sơ bộ."
+        f"Protocol đầy đủ dự kiến: SSL dùng {counts['train']:,} ảnh train và bỏ qua nhãn; "
+        f"ba nhánh phân loại dùng chung {labeled:,} ảnh có nhãn "
+        f"({labeled / counts['train']:.2%} train). Giữ validation {counts['val']:,} và "
+        f"test {counts['test']:,} ảnh chính thức. Ngân sách nhãn chỉ tính train; "
+        "validation vẫn dùng đầy đủ nhãn. Một seed cho kết quả sơ bộ. "
+        "Số ảnh thực dùng ở mỗi run được ghi riêng bên dưới."
     )
     section("Dữ liệu và phép so sánh", f"<p>{html.escape(protocol)}</p>", protocol)
+    if runs:
+        web, text = table(
+            ["Giai đoạn", "Ảnh train thực dùng", "Ảnh validation thực dùng"],
+            [[NAMES[stage], run.get("train_samples", "Chưa ghi nhận"),
+              run.get("val_samples", "Chưa ghi nhận")] for stage, run in runs.items()],
+        )
+        section("Dữ liệu thực dùng theo log", web, text)
+    model_summary = output / "model_summary.json"
+    if model_summary.exists():
+        counts = json.loads(model_summary.read_text("utf-8"))
+        web, text = table(["Thành phần", "Số tham số (kể cả positional embedding cố định)"],
+                          [[name, f"{value:,}"] for name, value in counts.items()])
+        section("Quy mô mô hình từ implementation", web, text)
     headers = [
         "Giai đoạn",
         "Trạng thái",
@@ -434,6 +459,11 @@ def build_report(output: Path, config: dict) -> Path:
                 "best_epoch": run.get("best_epoch"),
                 "wandb_url": run.get("wandb_url"),
                 "batch_adjustments": run.get("batch_adjustments", []),
+                "sessions": run.get("sessions", []),
+                "train_seconds": sum(row["train"].get("seconds", 0)
+                                     for row in run.get("history", [])),
+                "peak_vram_bytes": max((row.get("resource", {}).get("peak_vram_bytes", 0)
+                                        for row in run.get("history", [])), default=0),
             }
         )
     details = json.dumps(evidence, ensure_ascii=False, indent=2)

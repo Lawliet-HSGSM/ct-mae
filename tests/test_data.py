@@ -1,7 +1,9 @@
 import numpy as np
+import pytest
 import torch
 
-from ct_mae.data import OrganDataset, select_labeled_indices
+from ct_mae.config import load_config
+from ct_mae.data import OrganDataset, prepare_dataset, select_labeled_indices
 
 
 def test_subset_is_exact_stratified_reproducible_and_without_replacement():
@@ -34,3 +36,18 @@ def test_augmentation_varies_by_epoch_and_resumes_independently_of_loader_order(
     torch.testing.assert_close(second, restored[0]["image"])
     assert second.shape == (1, 32, 32)
     assert 0 <= second.min() <= second.max() <= 1
+
+
+def test_preparation_cannot_overwrite_an_experiment_with_a_different_subset(tmp_path, monkeypatch):
+    archive = tmp_path / "fixture.npz"
+    np.savez(archive, **{f"{split}_labels": np.arange(11).reshape(-1, 1)
+                         for split in ("train", "val", "test")})
+    monkeypatch.setattr("ct_mae.data.fetch_asset", lambda asset, folder: archive)
+    config = load_config()
+    config["dataset"]["labeled_count"] = 2
+    prepare_dataset(tmp_path, tmp_path / "run", config)
+    original = (tmp_path / "run" / "subset.json").read_bytes()
+    config["dataset"]["labeled_count"] = 3
+    with pytest.raises(ValueError, match="different"):
+        prepare_dataset(tmp_path, tmp_path / "run", config)
+    assert (tmp_path / "run" / "subset.json").read_bytes() == original

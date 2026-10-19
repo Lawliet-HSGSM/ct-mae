@@ -71,7 +71,17 @@ def build_model(stage: str, config: dict, output: Path, device: torch.device):
     source_hash = None
     if stage in ("linear", "finetune"):
         source = output / "pretrain" / "best.pt"
+        record = json.loads(source.with_name("run.json").read_text("utf-8"))
+        expected_status = "smoke_completed" if config.get("run_kind") == "smoke" else "completed"
+        if (record["status"] != expected_status
+                or record["completed_epochs"] != config["stages"]["pretrain"]["epochs"]):
+            raise ValueError("SSL transfer requires completed pretraining at the configured budget")
+        if record["config_digest"] != config_digest(config):
+            raise ValueError("SSL pretraining configuration differs from the transfer protocol")
         checkpoint = torch.load(source, map_location="cpu", weights_only=True)
+        if (checkpoint["config"].get("run_kind", "full")
+                != config.get("run_kind", "full")):
+            raise ValueError("Smoke and full experiment checkpoints cannot be mixed")
         if checkpoint["config"]["model"] != config["model"]:
             raise ValueError("SSL checkpoint architecture does not match the classifier")
         model.encoder.load_state_dict({key.removeprefix("encoder."): value
@@ -149,8 +159,6 @@ def run_stage(stage: str, config: dict, archive: Path, manifest: dict, output: P
     else:
         previous, run_id = None, None
     seed_everything(config["seed"])
-    tracker = RunTracker(config, stage, directory, run_id=run_id, smoke=smoke)
-    seed_everything(config["seed"])
     pretrain = stage == "pretrain"
     model, source_hash = build_model(stage, config, output, device)
     images, labels = read_split(archive, "train", supervised=not pretrain)
@@ -172,12 +180,19 @@ def run_stage(stage: str, config: dict, archive: Path, manifest: dict, output: P
         load_checkpoint(last_path, model, optimizer, scaler)
         history, start = previous["history"], previous["epoch"] + 1
         best_score, best_epoch = previous["best_score"], previous["best_epoch"]
+    runtime = environment_info(device)
+    sessions = saved_metadata.get("sessions", []) if previous else []
+    sessions.append({"start_epoch": start + 1, "environment": runtime, "recipe": recipe})
+    # W&B setup must not consume the model's training RNG, including during resume.
+    training_rng = capture_rng()
+    tracker = RunTracker(config, stage, directory, run_id=run_id, smoke=smoke)
+    restore_rng(training_rng)
     metadata = {
         "stage": stage, "status": "running", "smoke": smoke, "config": config,
         "config_digest": fingerprint, "recipe": recipe, "batch_adjustments": adjustments,
         "subset_sha256": manifest["indices_sha256"], "labeled_count": manifest["labeled_count"],
         "train_samples": len(train_data), "val_samples": len(val_data),
-        "environment": environment_info(device), "ssl_checkpoint_sha256": source_hash,
+        "environment": runtime, "sessions": sessions, "ssl_checkpoint_sha256": source_hash,
         "parameters": {"total": sum(p.numel() for p in model.parameters()),
                        "trainable": sum(p.numel() for p in model.parameters() if p.requires_grad),
                        "encoder": sum(p.numel() for p in model.encoder.parameters())},
@@ -185,6 +200,10 @@ def run_stage(stage: str, config: dict, archive: Path, manifest: dict, output: P
         "history": history, "completed_epochs": start,
     }
     write_json(directory / "run.json", metadata)
+    if tracker.run is not None:
+        tracker.run.config.update({"actual_recipe": recipe, "parameters": metadata["parameters"],
+                                   "subset_sha256": manifest["indices_sha256"],
+                                   "environment": metadata["environment"]}, allow_val_change=True)
     workers = config["training"]["num_workers"]
     validation = make_loader(val_data, recipe["batch_size"], workers,
                              seed=config["seed"], shuffle=False)

@@ -1,6 +1,7 @@
 """Supervision boundaries, reproducible sampling and modest spatial augmentation."""
 
 import hashlib
+import json
 from pathlib import Path
 
 import numpy as np
@@ -94,7 +95,10 @@ def prepare_dataset(data_dir: Path, output_dir: Path, config: dict) -> dict:
         ).tolist(),
         "label_budget_scope": "train only; full official labeled validation and test retained",
     }
-    write_json(output_dir / "subset.json", manifest)
+    destination = output_dir / "subset.json"
+    if destination.exists() and json.loads(destination.read_text("utf-8")) != manifest:
+        raise ValueError("Output already contains a different labeled subset")
+    write_json(destination, manifest)
     return manifest
 
 
