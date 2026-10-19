@@ -3,8 +3,9 @@
 Học biểu diễn trên crop CT 2D bằng Transformer encoder và masked autoencoding.
 Người dùng chủ động chốt thiết kế; agent implement và kiểm thử từng phần đã thống nhất.
 
-Đã hoàn thành milestone xem dữ liệu OrganAMNIST nguyên trạng.
-Đang cùng người dùng thiết kế đầu vào trước khi implement pipeline huấn luyện.
+Đã implement pipeline dữ liệu, asymmetric MAE, ba nhánh phân loại, checkpoint/resume,
+W&B và báo cáo HTML/Markdown. Trạng thái và kết quả train thực tế nằm trong báo cáo;
+smoke test được lưu riêng, không dùng thay cho kết quả baseline đầy đủ.
 
 ## Thiết kế đầu vào đã thống nhất
 
@@ -12,17 +13,45 @@ Người dùng chủ động chốt thiết kế; agent implement và kiểm th�
 - Patch size khởi đầu: 8×8, tạo lưới 16×16 = 256 patch mỗi ảnh.
 - Người dùng chọn 128 vì bản 64 có cảm giác quá nhỏ sau khi xem ảnh;
   patch size có thể thay đổi trong các thí nghiệm sau.
-- Tensor scaling/normalization, augmentation, mask ratio và ngân sách nhãn
-  vẫn đang thảo luận. Mốc mask 75% hiện là đề xuất, chưa phải lựa chọn đã chốt.
+- Tensor float32 `[B,1,128,128]`, pixel / 255; affine nhẹ ±5°, dịch tối đa 5%.
+- MAE che 75% patch, encoder 12 blocks × 384 chiều, decoder 2 blocks × 128 chiều.
+- SSL dùng toàn bộ ảnh train; cả ba nhánh phân loại dùng chung 1.728 ảnh có nhãn.
+- Seed 42; pretrain 200 epochs, mỗi nhánh phân loại 100 epochs; chọn checkpoint bằng validation.
 
-Các quyết định này dành cho pipeline tiếp theo; báo cáo khám phá vẫn giữ nguyên
-pixel gốc và so sánh đủ ba resolution. Hyperparameter khác vẫn là ứng viên.
+Protocol, cách chạy và giới hạn đánh giá được ghi trong [BASELINE.md](BASELINE.md).
+Recipe máy đọc được nằm ở `src/ct_mae/baseline.json`. Báo cáo khám phá vẫn giữ pixel gốc.
+
+## Chạy pipeline baseline
+
+```powershell
+Set-Location 'D:\Development\SchoolProject\ct-mae\.worktrees\dataset'
+uv sync --extra train --group dev
+uv run --extra train python -m ct_mae.run --stage prepare --data-dir 'D:\Development\SchoolProject\ct-mae\data' --output reports/baseline
+uv run --extra train python -m ct_mae.kaggle --smoke --output work/kaggle_smoke.py
+uv run --extra train python -m ct_mae.kaggle --output work/kaggle_baseline.py
+```
+
+Hai script cuối là bản đóng gói source/tests để submit qua **Kaggle MCP** vào notebook
+[CT MAE Baseline](https://www.kaggle.com/code/lawlietwilllucky/ct-mae-baseline), private,
+GPU và Internet bật. Dữ liệu được tải trực tiếp từ nguồn chính thức và kiểm MD5.
+W&B dùng project `ct-mae`, đọc secret label `WANDB_API_KEY_THANG` đã cấp quyền trong Kaggle.
+Chỉ label được lưu trong config; giá trị key không nằm trong repo hay script đóng gói.
+
+Windows dùng PyTorch CPU trong venv để kiểm thử. Notebook giữ CUDA runtime của Kaggle,
+ghi phiên bản thực tế vào `environment.json` và metadata từng run.
+
+```powershell
+uv run --extra train python -m ct_mae.run --stage report --output reports/baseline
+uv run --extra train pytest -q
+uv run --extra train ruff check .
+uv run --extra train python scripts/check_training_report.py reports/baseline/training_report.html
+```
 
 ## Repository và worktree
 
 - Repository: `D:\Development\SchoolProject\ct-mae`
 - Worktree: `D:\Development\SchoolProject\ct-mae\.worktrees\dataset`
-- Branch: `feature/dataset-explorer`
+- Branch triển khai: `feature/mae-baseline`
 - Raw data dùng chung: `D:\Development\SchoolProject\ct-mae\data` (không đưa vào Git).
 
 `SPEC.md` mô tả phạm vi và điều kiện nghiệm thu của milestone này.
@@ -80,8 +109,8 @@ Giữ nguyên split chính thức. Nếu sau này chọn mean/std cho model, ch�
 ## Kiểm tra
 
 ```powershell
-uv run pytest -q
-uv run ruff check .
+uv run --extra train pytest -q
+uv run --extra train ruff check .
 uv run python scripts/check_report.py reports/explorer.html --screenshot reports/browser_preview.png
 ```
 

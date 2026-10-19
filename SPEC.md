@@ -60,6 +60,7 @@ The user selected official 128×128 OrganAMNIST images and an initial 8×8 patch
 size, giving 256 patches per image. The smaller 64×64 images looked too small
 to the user; patch size remains adjustable in later experiments.
 
-Tensor scaling/normalization, augmentation, mask ratio and label budgets are
-still under user-led discussion. A 75% mask ratio is a proposal, not yet an
-accepted setting. These decisions do not change the raw-data explorer's scope.
+The user subsequently accepted and requested implementation of the complete
+baseline protocol in `BASELINE.md`, with its machine-readable recipe at
+`src/ct_mae/baseline.json`. This extends the project after the explorer milestone;
+the explorer continues to display the original data without training transforms.
