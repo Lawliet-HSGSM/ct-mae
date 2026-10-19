@@ -3,9 +3,20 @@
 Học biểu diễn trên crop CT 2D bằng Transformer encoder và masked autoencoding.
 Người dùng chủ động chốt thiết kế; agent implement và kiểm thử từng phần đã thống nhất.
 
-Milestone hiện tại: xem dữ liệu OrganAMNIST nguyên trạng để quyết định preprocessing.
-Resolution đầu vào, patch size, normalization, augmentation và ngân sách nhãn còn mở.
-Các giá trị hyperparameter đã thảo luận là ứng viên, chưa phải cấu hình đã chốt.
+Đã hoàn thành milestone xem dữ liệu OrganAMNIST nguyên trạng.
+Đang cùng người dùng thiết kế đầu vào trước khi implement pipeline huấn luyện.
+
+## Thiết kế đầu vào đã thống nhất
+
+- Dataset: OrganAMNIST 2D, bản chính thức 128×128, một kênh xám.
+- Patch size khởi đầu: 8×8, tạo lưới 16×16 = 256 patch mỗi ảnh.
+- Người dùng chọn 128 vì bản 64 có cảm giác quá nhỏ sau khi xem ảnh;
+  patch size có thể thay đổi trong các thí nghiệm sau.
+- Tensor scaling/normalization, augmentation, mask ratio và ngân sách nhãn
+  vẫn đang thảo luận. Mốc mask 75% hiện là đề xuất, chưa phải lựa chọn đã chốt.
+
+Các quyết định này dành cho pipeline tiếp theo; báo cáo khám phá vẫn giữ nguyên
+pixel gốc và so sánh đủ ba resolution. Hyperparameter khác vẫn là ứng viên.
 
 ## Repository và worktree
 

@@ -53,5 +53,13 @@ pixel display. Do not commit raw data, environments, reports or credentials.
 No training, resizing of source assets, fitted preprocessing, augmentation,
 masking experiments or new classification splits are part of this milestone.
 Keep the official splits and report any metadata disagreement explicitly.
-Dataset resolution, patch size, normalization and label budgets remain open for
-the next user-led design discussion.
+
+## Decisions after inspection
+
+The user selected official 128×128 OrganAMNIST images and an initial 8×8 patch
+size, giving 256 patches per image. The smaller 64×64 images looked too small
+to the user; patch size remains adjustable in later experiments.
+
+Tensor scaling/normalization, augmentation, mask ratio and label budgets are
+still under user-led discussion. A 75% mask ratio is a proposal, not yet an
+accepted setting. These decisions do not change the raw-data explorer's scope.
