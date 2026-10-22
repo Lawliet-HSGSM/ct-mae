@@ -6,6 +6,8 @@ from test_pipeline import experiment_fixture
 
 from ct_mae.config import write_json
 from ct_mae.followup import extract_analysis, train_partial
+from ct_mae.followup_report import collect_analysis
+from ct_mae.followup_writeup import write_reports
 from ct_mae.pipeline import evaluate_stage, run_stage
 
 
@@ -18,10 +20,16 @@ def test_followup_trains_selected_blocks_and_extracts_without_retraining_baselin
     baseline = tmp_path / 'baseline'
     write_json(baseline / 'resolved_config.json', config)
     manifest['filename'] = archive.name
+    with np.load(archive) as data:
+        manifest['labeled_class_counts'] = np.bincount(
+            data['train_labels'].reshape(-1)[manifest['indices']], minlength=11,
+        ).tolist()
     write_json(baseline / 'subset.json', manifest)
     device = torch.device('cpu')
     for stage in ('pretrain', 'scratch', 'linear', 'finetune'):
         run_stage(stage, config, archive, manifest, baseline, device)
+        if stage != 'pretrain':
+            evaluate_stage(stage, config, archive, manifest, baseline, device)
     before = (baseline / 'finetune/best.pt').read_bytes()
 
     def prepare(data_dir, output, selected_config):
@@ -49,3 +57,11 @@ def test_followup_trains_selected_blocks_and_extracts_without_retraining_baselin
     assert (baseline / 'finetune/best.pt').read_bytes() == before
     expected = evaluate_stage('finetune', config, archive, manifest, baseline, device)
     assert expected['samples'] == 11
+    report = tmp_path / 'report'
+    analysis = collect_analysis(baseline, output, archive, report)
+    write_reports(analysis, report)
+    assert (report / 'followup_report.html').is_file()
+    assert (report / 'followup_report.md').is_file()
+    assert sum(analysis['paired']['finetune_to_partial'].values()) == 11
+    assert analysis['projections']['partial']['pca']['fit_samples'] == 44
+    assert len(analysis['coordinates']['partial']['pca']) == 11

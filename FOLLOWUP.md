@@ -39,3 +39,18 @@ and the same 1,728 labeled indices; do not repeat pretraining.
 Oversampling and contrastive training are conditional future extensions, not
 part of this controlled follow-up. Visual appearance alone does not establish
 that texture caused a classification error.
+# Reproducing the report
+
+From this worktree, after collecting the completed Kaggle output under
+`D:\Development\SchoolProject\ct-mae\reports\followup\artifacts`:
+
+```powershell
+$env:PYTHONPATH = (Join-Path (Get-Location) 'src')
+& '..\dataset\.venv\Scripts\python.exe' -m ct_mae.followup_report --baseline '../dataset/reports/kaggle-v7' --followup '../../reports/followup/artifacts' --archive '../../data/organamnist_128.npz' --output '../../reports/followup'
+& '..\dataset\.venv\Scripts\python.exe' scripts/check_followup_report.py '../../reports/followup/followup_report.html' --output '../../reports/followup/browser-qa'
+```
+
+The report includes exact PCA/SVD bases and test indices, a frozen-parameter audit,
+per-class confusion counts, paired prediction changes, fixed-checkpoint loss
+diagnostics, and both extreme-error and randomly chosen example galleries.
+The HTML contains its own data, images, CSS and JavaScript and opens offline.
