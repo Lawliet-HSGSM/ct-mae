@@ -33,7 +33,8 @@ def comparison_figures(data, output):
             axis.plot([5, 10], [data['budgets'][key]['methods'][stage][metric] * 100
                                 for key in ('5', '10')], marker='o',
                        color=METHOD_COLORS[stage], label=SHORT[stage])
-            axis.set(xticks=[5, 10], xlabel='% nhãn train', ylabel=f'Test {metric} (%)')
+            metric_name = 'Accuracy' if metric == 'accuracy' else 'macro-F1'
+            axis.set(xticks=[5, 10], xlabel='% nhãn train', ylabel=f'Test {metric_name} (%)')
             axis.grid(alpha=.2)
             axis.legend()
     fig.suptitle('Hai ngân sách nhãn · 100 epoch / nhánh · seed 42\n'
@@ -74,7 +75,10 @@ def comparison_figures(data, output):
                 axis.plot([row['epoch'] for row in curve],
                            [row[metric] * factor for row in curve], linestyle=style,
                            label=f'{budget}% nhãn')
-            axis.set(title=NAMES[stage], xlabel='Epoch', ylabel=metric)
+            metric_name = {'val_macro_f1': 'Validation macro-F1 (%)',
+                           'train_loss': 'Train cross-entropy',
+                           'val_loss': 'Validation cross-entropy'}[metric]
+            axis.set(title=NAMES[stage], xlabel='Epoch', ylabel=metric_name)
             axis.grid(alpha=.2)
             axis.legend()
         figure_save(fig, output, filename)
@@ -134,7 +138,8 @@ def paired_galleries(data, images, labels, predictions, output):
                     title += (f'\n{budget}%: {METADATA["labels"][predicted]} '
                               f'({values["probability"][index, predicted]:.1%})')
                 axis.set_title(title, fontsize=10)
-            fig.suptitle(f'{SHORT[stage]} · {name} · ảnh gốc, grayscale cố định 0–255')
+            caption = '5% sai → 10% đúng' if name == 'recovered' else '5% đúng → 10% sai'
+            fig.suptitle(f'{SHORT[stage]} · {caption} · ảnh gốc, grayscale cố định 0–255')
             figure_save(fig, output, f'cases_{stage}_{name}')
     return cases
 

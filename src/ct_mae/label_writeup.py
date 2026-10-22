@@ -36,7 +36,7 @@ def write_report(data, output):
             markdown.append(f'![{caption}](figures/{name}.png)\n')
 
     markdown.extend(['# CT-MAE — So sánh 5% và 10% nhãn',
-                     'Kết quả một seed 42, mang tính khám phá.'])
+                     '\nKết quả một seed 42, mang tính khám phá.'])
     section('results', 'Kết quả đo được ở hai ngân sách nhãn')
     prose(f'Mốc 5% dùng {budgets["5"]["count"]:,} ảnh có nhãn; mốc 10% dùng '
           f'{budgets["10"]["count"]:,} ảnh. Mỗi nhánh chạy đủ 100 epoch, chọn checkpoint '
@@ -48,8 +48,8 @@ def write_report(data, output):
                          f'{(b["accuracy"] - a["accuracy"]) * 100:+.2f}',
                          percent(a['macro_f1']), percent(b['macro_f1']),
                          f'{(b["macro_f1"] - a["macro_f1"]) * 100:+.2f}', b['best_epoch']])
-    headers = ['Nhánh', 'Acc 5%', 'Acc 10%', 'Δ Acc (đpt)', 'F1 5%', 'F1 10%',
-               'Δ F1 (đpt)', 'Epoch chọn 10%']
+    headers = ['Nhánh', 'Acc 5%', 'Acc 10%', 'Δ Acc (đpt)', 'Macro-F1 5%', 'Macro-F1 10%',
+               'Δ macro-F1 (đpt)', 'Epoch chọn 10%']
     paragraphs.append(table(headers, overview))
     markdown.append('| ' + ' | '.join(headers) + ' |\n|' + '---|' * len(headers) + '\n'
                     + '\n'.join('| ' + ' | '.join(map(str, row)) + ' |' for row in overview))
@@ -72,6 +72,9 @@ def write_report(data, output):
           'lấy thêm ảnh theo phân bổ tỷ lệ lớp, không lấy trùng. Cả bốn nhánh ở mốc 10% '
           'dùng đúng cùng danh sách index, seed 42. “5%/10%” chỉ tính nhãn train; vẫn '
           'dùng toàn bộ nhãn validation để chọn checkpoint.')
+    prose('Các con số 1.728 và 3.456 là số crop có nhãn, không phải số bệnh nhân. '
+          'NPZ thiếu scan ID, nên chưa biết thêm ảnh đã mở rộng độ bao phủ ca chụp '
+          'bao nhiêu. Những crop gần nhau từ cùng scan có thể tương quan mạnh.')
     class_rows = [[data['labels_vi'][i], budgets['5']['manifest']['labeled_class_counts'][i],
                    budgets['10']['manifest']['labeled_class_counts'][i], data['counts']['train'][i],
                    data['counts']['val'][i], data['counts']['test'][i]] for i in range(11)]
