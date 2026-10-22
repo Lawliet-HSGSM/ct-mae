@@ -138,3 +138,19 @@ nằm ở `D:\Development\SchoolProject\ct-mae\reports\followup\followup_report.
 mở offline, có bộ lọc worst cases, biểu đồ tương tác và 19 hình PNG xuất riêng.
 Kết quả và giới hạn một seed được ghi trong tài liệu; dữ liệu, checkpoint và
 report không đưa vào Git.
+
+## So sánh 5% và 10% nhãn
+
+[LABEL_STUDY.md](LABEL_STUDY.md) ghi protocol và kết quả của bốn nhánh ở mốc
+3.456 ảnh có nhãn, chứa toàn bộ tập 1.728 ảnh cũ. Mỗi nhánh chạy 100 epoch,
+seed 42, tái sử dụng chính MAE checkpoint đã có; không train lại MAE.
+
+Ở 10%, supervised từ đầu đạt 84,98% Accuracy, SSL linear đạt 86,18%,
+full fine-tuning đạt 91,66% và partial đạt 91,00%. Mốc 5% partial nhỉnh hơn full;
+ở 10% thứ hạng đảo lại. Đây là kết quả một seed, cùng số epoch nhưng khác số
+optimizer updates. Báo cáo có bảng từng organ, confusion matrix, đường học,
+ảnh được sửa/ảnh mới sai và các giới hạn diễn giải.
+
+Báo cáo offline:
+`D:\Development\SchoolProject\ct-mae\reports\label-study\label_efficiency_report.html`.
+Bản Markdown, JSON và các hình PNG nằm cùng thư mục.

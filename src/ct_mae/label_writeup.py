@@ -35,6 +35,12 @@ def write_report(data, output):
         if (output / f'figures/{name}.png').exists():
             markdown.append(f'![{caption}](figures/{name}.png)\n')
 
+    def report_table(headers, rows):
+        paragraphs.append(table(headers, rows))
+        markdown.append('| ' + ' | '.join(headers) + ' |\n|' + '---|' * len(headers) + '\n'
+                        + '\n'.join('| ' + ' | '.join(map(str, row)) + ' |' for row in rows)
+                        + '\n')
+
     markdown.extend(['# CT-MAE — So sánh 5% và 10% nhãn',
                      '\nKết quả một seed 42, mang tính khám phá.'])
     section('results', 'Kết quả đo được ở hai ngân sách nhãn')
@@ -50,9 +56,7 @@ def write_report(data, output):
                          f'{(b["macro_f1"] - a["macro_f1"]) * 100:+.2f}', b['best_epoch']])
     headers = ['Nhánh', 'Acc 5%', 'Acc 10%', 'Δ Acc (đpt)', 'Macro-F1 5%', 'Macro-F1 10%',
                'Δ macro-F1 (đpt)', 'Epoch chọn 10%']
-    paragraphs.append(table(headers, overview))
-    markdown.append('| ' + ' | '.join(headers) + ' |\n|' + '---|' * len(headers) + '\n'
-                    + '\n'.join('| ' + ' | '.join(map(str, row)) + ' |' for row in overview))
+    report_table(headers, overview)
     prose('Accuracy là tỷ lệ ảnh đoán đúng. Macro-F1 lấy trung bình F1 của 11 lớp, '
           'mỗi lớp có trọng số bằng nhau. Δ là thay đổi 10% − 5%, đơn vị điểm phần trăm. '
           'Bảng chỉ có một lượt seed 42; chênh lệch nhỏ chưa thể hiện độ ổn định qua seed.')
@@ -78,8 +82,7 @@ def write_report(data, output):
     class_rows = [[data['labels_vi'][i], budgets['5']['manifest']['labeled_class_counts'][i],
                    budgets['10']['manifest']['labeled_class_counts'][i], data['counts']['train'][i],
                    data['counts']['val'][i], data['counts']['test'][i]] for i in range(11)]
-    paragraphs.append(table(['Organ', 'Nhãn 5%', 'Nhãn 10%', 'Train đầy đủ', 'Val', 'Test'],
-                            class_rows))
+    report_table(['Organ', 'Nhãn 5%', 'Nhãn 10%', 'Train đầy đủ', 'Val', 'Test'], class_rows)
     prose('MAE đã học toàn bộ ảnh train không nhãn từ lượt trước; thí nghiệm này tái sử '
           'dụng chính checkpoint đó. Encoder 12 block, chiều 384, 6 heads, patch 8×8. '
           'Các classifier dùng ảnh đầy đủ → mean patch pooling → Linear(384,11). '
@@ -93,8 +96,8 @@ def write_report(data, output):
         recipe_rows.append([NAMES[stage], recipe['epochs'], recipe['lr'],
                             f'{recipe["batch_size"]} × {recipe["accumulation"]}',
                             recipe['weight_decay'], method['parameters']['trainable']])
-    paragraphs.append(table(['Nhánh 10%', 'Epoch', 'Peak LR thực', 'Batch × tích lũy',
-                              'Weight decay', 'Tham số train'], recipe_rows))
+    report_table(['Nhánh 10%', 'Epoch', 'Peak LR thực', 'Batch × tích lũy',
+                  'Weight decay', 'Tham số train'], recipe_rows)
     prose('Giữ AdamW, betas (0.9,0.999), epsilon 1e-8; warmup 5 epoch rồi cosine về '
           '1e-6. Không decay bias/LayerNorm. AMP FP16; stochastic depth 0.1 khi '
           'train encoder, phần đóng băng ở eval. Train dùng affine nhẹ ±5°, dịch '
@@ -111,8 +114,8 @@ def write_report(data, output):
         cost_rows.append([NAMES[stage], a['updates'], b['updates'],
                           f'{a["seconds"] / 60:.1f}', f'{b["seconds"] / 60:.1f}',
                           f'{b["peak_vram_bytes"] / 1024**3:.2f}'])
-    paragraphs.append(table(['Nhánh', 'Updates 5%', 'Updates 10%', 'Phút 5%', 'Phút 10%',
-                              'Peak VRAM 10% (GiB)'], cost_rows))
+    report_table(['Nhánh', 'Updates 5%', 'Updates 10%', 'Phút 5%', 'Phút 10%',
+                  'Peak VRAM 10% (GiB)'], cost_rows)
     prose('Updates là số bước thực hiện thành công từ log. Thời gian giai đoạn gồm '
           'train, validation và ghi checkpoint/log, không gồm tải dữ liệu. Các phiên '
           'Kaggle riêng có thể khác tốc độ dù cùng loại GPU. Checkpoint lưu đủ trạng '
@@ -143,9 +146,10 @@ def write_report(data, output):
             new = methods['10'][stage]['confusion'][source][target]
             focused.append([SHORT[stage], data['labels_vi'][source], data['labels_vi'][target],
                             old, new, new - old])
-    paragraphs.append('<details><summary>Các hướng nhầm đã theo dõi từ báo cáo trước</summary>'
-                      + table(['Nhánh', 'Thật', 'Dự đoán', 'Số ảnh 5%', 'Số ảnh 10%', 'Δ ảnh'],
-                              focused) + '</details>')
+    paragraphs.append('<details><summary>Các hướng nhầm đã theo dõi từ báo cáo trước</summary>')
+    markdown.append('\n### Các hướng nhầm đã theo dõi từ báo cáo trước\n')
+    report_table(['Nhánh', 'Thật', 'Dự đoán', 'Số ảnh 5%', 'Số ảnh 10%', 'Δ ảnh'], focused)
+    paragraphs.append('</details>')
     prose('Confusion matrix có hàng là nhãn thật, cột là nhãn dự đoán. Ô đường chéo '
           'là đúng; ô ngoài đường chéo cho biết nhầm từ đâu sang đâu. Hình ghi cả '
           'số ảnh và % theo hàng, để so các lớp có số ảnh khác nhau.')
@@ -159,6 +163,8 @@ def write_report(data, output):
             path = output / f'figures/confusion_{stage}_{budget}.png'
             figure_payload[f'{stage}_{budget}'] = 'data:image/png;base64,' + (
                 base64.b64encode(path.read_bytes()).decode('ascii'))
+            markdown.append(f'![{NAMES[stage]} · {budget}% nhãn]'
+                            f'(figures/confusion_{stage}_{budget}.png)\n')
     end()
 
     section('learning', 'Đường học và chọn checkpoint')
@@ -192,6 +198,18 @@ def write_report(data, output):
     end()
 
     section('interpretation', 'Có thể kết luận gì từ lượt này?')
+    old_difference = (methods['5']['finetune']['accuracy']
+                      - methods['5']['partial']['accuracy']) * 100
+    new_difference = (methods['10']['finetune']['accuracy']
+                      - methods['10']['partial']['accuracy']) * 100
+    prose(f'Chênh lệch Accuracy Full − Partial là {old_difference:+.2f} đpt ở 5% '
+          f'và {new_difference:+.2f} đpt ở 10%. Thứ hạng cần được kiểm tra theo '
+          'ngân sách nhãn và qua nhiều seed; không mặc định mở ít hoặc nhiều block '
+          'luôn tốt hơn.')
+    prose(f'Full với 5% nhãn đạt Accuracy {percent(methods["5"]["finetune"]["accuracy"])}, '
+          f'còn scratch với 10% nhãn đạt {percent(methods["10"]["scratch"]["accuracy"])}. '
+          'Đây là một đối chiếu trực tiếp về hiệu quả nhãn trong lượt đo này; nhánh '
+          'SSL vẫn có thêm dữ liệu không nhãn và chi phí pretraining như đã nêu.')
     for stage in ('linear', 'finetune', 'partial'):
         old_gap = (methods['5'][stage]['accuracy'] - methods['5']['scratch']['accuracy']) * 100
         new_gap = (methods['10'][stage]['accuracy'] - methods['10']['scratch']['accuracy']) * 100
@@ -223,6 +241,9 @@ def write_report(data, output):
     paragraphs.append('<p><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC9852451/">'
                       'MedMNIST v2: dữ liệu và split theo CT scan</a> · '
                       '<a href="https://arxiv.org/abs/2111.06377">MAE paper</a></p>')
+    markdown.extend(['[MedMNIST v2: dữ liệu và split theo CT scan]'
+                     '(https://pmc.ncbi.nlm.nih.gov/articles/PMC9852451/)\n',
+                     '[MAE paper](https://arxiv.org/abs/2111.06377)\n'])
     prose('label_comparison.json lưu metric tính lại từ dự đoán, index, lịch học, '
           'cấu hình thực và provenance. figures/ chứa PNG riêng. HTML nhúng hình và '
           'dữ liệu nên mở offline; các link W&B/nguồn chỉ truy cập mạng khi bấm.')

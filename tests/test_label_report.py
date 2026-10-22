@@ -40,3 +40,10 @@ def test_report_matches_saved_predictions_and_nested_budgets(tmp_path):
     assert (report / 'label_efficiency_report.html').is_file()
     assert (report / 'label_efficiency_report.md').is_file()
     assert (report / 'figures/label_comparison.png').is_file()
+    markdown = (report / 'label_efficiency_report.md').read_text('utf-8')
+    assert '| Organ | Nhãn 5% | Nhãn 10% |' in markdown
+    assert '| Nhánh 10% | Epoch | Peak LR thực |' in markdown
+    assert '| Nhánh | Updates 5% | Updates 10% |' in markdown
+    assert '| Nhánh | Thật | Dự đoán |' in markdown
+    assert 'figures/confusion_finetune_10.png' in markdown
+    assert 'https://arxiv.org/abs/2111.06377' in markdown
