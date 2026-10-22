@@ -196,7 +196,8 @@ class MaskedAutoencoder(nn.Module):
 
 
 class OrganClassifier(nn.Module):
-    def __init__(self, config: dict, num_classes: int, *, frozen: bool = False, seed: int = 42):
+    def __init__(self, config: dict, num_classes: int, *, frozen: bool = False, seed: int = 42,
+                 trainable_blocks: int | None = None):
         super().__init__()
         self.encoder = ViTEncoder(config, drop_path=config["classifier_drop_path"])
         self.head = nn.Linear(config["encoder_dim"], num_classes)
@@ -205,15 +206,31 @@ class OrganClassifier(nn.Module):
             torch.random.default_generator.manual_seed(seed)
             nn.init.trunc_normal_(self.head.weight, std=0.02)
             nn.init.zeros_(self.head.bias)
-        self.frozen = frozen
-        if frozen:
+        depth = len(self.encoder.blocks)
+        if trainable_blocks is not None and not 0 <= trainable_blocks <= depth:
+            raise ValueError("Trainable blocks must be between zero and encoder depth")
+        if frozen and trainable_blocks not in (None, 0):
+            raise ValueError("Frozen encoder cannot have trainable blocks")
+        self.trainable_blocks = 0 if frozen else (
+            depth if trainable_blocks is None else trainable_blocks
+        )
+        self.frozen = self.trainable_blocks == 0
+        if self.trainable_blocks < depth:
             self.encoder.requires_grad_(False)
-            self.encoder.eval()
+            if self.trainable_blocks:
+                for block in self.encoder.blocks[-self.trainable_blocks:]:
+                    block.requires_grad_(True)
+                self.encoder.norm.requires_grad_(True)
+        self.train()
 
     def train(self, mode: bool = True):
         super().train(mode)
-        if self.frozen:
+        if self.trainable_blocks < len(self.encoder.blocks):
             self.encoder.eval()
+            if mode and self.trainable_blocks:
+                for block in self.encoder.blocks[-self.trainable_blocks:]:
+                    block.train()
+                self.encoder.norm.train()
         return self
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:

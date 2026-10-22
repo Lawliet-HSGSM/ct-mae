@@ -67,16 +67,27 @@ def build_model(stage: str, config: dict, output: Path, device: torch.device):
     if stage == "pretrain":
         return MaskedAutoencoder(config["model"]).to(device), None
     model = OrganClassifier(config["model"], config["dataset"]["num_classes"],
-                            frozen=stage == "linear", seed=config["seed"])
+                            frozen=stage == "linear", seed=config["seed"],
+                            trainable_blocks=config["followup"]["partial_blocks"]
+                            if stage == "partial" else None)
     source_hash = None
-    if stage in ("linear", "finetune"):
-        source = output / "pretrain" / "best.pt"
+    if stage in ("linear", "finetune", "partial"):
+        origin = Path(config["followup"]["baseline_directory"]) if stage == "partial" else output
+        source = origin / "pretrain" / "best.pt"
         record = json.loads(source.with_name("run.json").read_text("utf-8"))
         expected_status = "smoke_completed" if config.get("run_kind") == "smoke" else "completed"
         if (record["status"] != expected_status
                 or record["completed_epochs"] != config["stages"]["pretrain"]["epochs"]):
             raise ValueError("SSL transfer requires completed pretraining at the configured budget")
-        if record["config_digest"] != config_digest(config):
+        source_config = copy.deepcopy(config)
+        if stage == "partial":
+            source_config.pop("followup")
+            source_config["stages"].pop("partial")
+            if config["followup"]["baseline_config_digest"] != config_digest(source_config):
+                raise ValueError("Partial transfer changed the baseline protocol")
+            if sha256_file(source) != config["followup"]["pretrain_sha256"]:
+                raise ValueError("SSL checkpoint checksum differs from the baseline")
+        if record["config_digest"] != config_digest(source_config):
             raise ValueError("SSL pretraining configuration differs from the transfer protocol")
         checkpoint = torch.load(source, map_location="cpu", weights_only=True)
         if (checkpoint["config"].get("run_kind", "full")
