@@ -10,15 +10,17 @@ from ct_mae.models import OrganClassifier
 from ct_mae.pipeline import build_model, run_stage, sha256_file
 
 
-def test_partial_updates_only_last_blocks_final_norm_and_head():
+@pytest.mark.parametrize('trainable_count', [2, 4])
+def test_partial_updates_only_last_blocks_final_norm_and_head(trainable_count):
     config = small_config()
     config.update(encoder_depth=4, classifier_drop_path=0.5)
-    model = OrganClassifier(config, num_classes=11, trainable_blocks=2)
+    model = OrganClassifier(config, num_classes=11, trainable_blocks=trainable_count)
     before = {key: value.clone() for key, value in model.state_dict().items()}
     model.train()
     assert not model.encoder.patch_embed.training
-    assert all(not block.training for block in model.encoder.blocks[:2])
-    assert all(block.training for block in model.encoder.blocks[2:])
+    first = 4 - trainable_count
+    assert all(not block.training for block in model.encoder.blocks[:first])
+    assert all(block.training for block in model.encoder.blocks[first:])
     assert model.encoder.norm.training and model.head.training
     optimizer = torch.optim.AdamW(
         [parameter for parameter in model.parameters() if parameter.requires_grad], lr=0.01,
@@ -26,7 +28,9 @@ def test_partial_updates_only_last_blocks_final_norm_and_head():
     logits = model(torch.rand(5, 1, 16, 16))
     torch.nn.functional.cross_entropy(logits, torch.tensor([0, 1, 2, 3, 4])).backward()
     optimizer.step()
-    allowed = ('encoder.blocks.2.', 'encoder.blocks.3.', 'encoder.norm.', 'head.')
+    allowed = tuple(f'encoder.blocks.{index}.' for index in range(first, 4)) + (
+        'encoder.norm.', 'head.',
+    )
     changed = []
     for key, value in model.state_dict().items():
         if key.startswith(allowed):

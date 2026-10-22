@@ -215,7 +215,8 @@ class OrganClassifier(nn.Module):
             depth if trainable_blocks is None else trainable_blocks
         )
         self.frozen = self.trainable_blocks == 0
-        if self.trainable_blocks < depth:
+        self.restricted_encoder = frozen or trainable_blocks is not None
+        if self.restricted_encoder:
             self.encoder.requires_grad_(False)
             if self.trainable_blocks:
                 for block in self.encoder.blocks[-self.trainable_blocks:]:
@@ -225,7 +226,7 @@ class OrganClassifier(nn.Module):
 
     def train(self, mode: bool = True):
         super().train(mode)
-        if self.trainable_blocks < len(self.encoder.blocks):
+        if self.restricted_encoder:
             self.encoder.eval()
             if mode and self.trainable_blocks:
                 for block in self.encoder.blocks[-self.trainable_blocks:]:
