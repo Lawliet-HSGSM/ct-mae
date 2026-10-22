@@ -12,10 +12,10 @@ from ct_mae.config import write_json
 from ct_mae.pipeline import sha256_file
 
 
-def selected_path(filename: str) -> Path | None:
+def selected_path(filename: str, *, root_name='ct-mae-followup') -> Path | None:
     path = PurePosixPath(filename)
     if (path.is_absolute() or '..' in path.parts or '\\' in filename
-            or not path.parts or path.parts[0] != 'ct-mae-followup'
+            or not path.parts or path.parts[0] != root_name
             or any(':' in part for part in path.parts) or 'wandb' in path.parts):
         return None
     relative = Path(*path.parts[1:])
@@ -26,8 +26,8 @@ def selected_path(filename: str) -> Path | None:
     return relative
 
 
-def fetch_file(item, output):
-    relative = selected_path(item['file_name'])
+def fetch_file(item, output, *, root_name='ct-mae-followup'):
+    relative = selected_path(item['file_name'], root_name=root_name)
     if relative is None:
         return None
     destination = output / relative

@@ -20,3 +20,11 @@ def test_collector_retains_evidence_and_resume_checkpoint():
     assert selected_path('ct-mae-followup/embeddings/mae_test.npz') == Path(
         'embeddings/mae_test.npz',
     )
+
+
+def test_collector_uses_explicit_study_root_without_accepting_other_outputs():
+    name = 'ct-mae-labels10pct/partial/best.pt'
+    assert selected_path(name) is None
+    assert selected_path(name, root_name='ct-mae-labels10pct') == Path('partial/best.pt')
+    assert selected_path('ct-mae-followup/partial/best.pt',
+                         root_name='ct-mae-labels10pct') is None
