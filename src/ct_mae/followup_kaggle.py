@@ -8,7 +8,7 @@ import subprocess
 import zipfile
 from pathlib import Path
 
-TEMPLATE = r'''import base64, hashlib, importlib.metadata, io, json, os, subprocess, sys
+BOOTSTRAP = r'''import base64, hashlib, importlib.metadata, io, json, os, subprocess, sys
 import urllib.request, zipfile
 from pathlib import Path
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -60,6 +60,10 @@ for stage, url in checkpoint_urls.items():
 data = Path("/kaggle/temp/ct-mae-data")
 fetch_asset(official_asset(128),data)
 subprocess.run([sys.executable,"-m","pytest","-q",str(source/"tests")],cwd=source,check=True)
+__RUN_COMMANDS__
+'''
+
+FOLLOWUP_COMMANDS = r'''
 command = [sys.executable,"-m","ct_mae.followup","--baseline",str(baseline),
            "--data-dir",str(data),"--output",str(output),"--blocks","3"]
 smoke = [sys.executable,"-m","ct_mae.followup","--baseline",str(baseline),
@@ -73,8 +77,11 @@ write_json(output/"job_status.json",{"status":"completed","source_sha256":__DIGE
 print("FOLLOWUP COMPLETE",flush=True)
 '''
 
+TEMPLATE = BOOTSTRAP.replace('__RUN_COMMANDS__', FOLLOWUP_COMMANDS)
 
-def build_script(destination: Path, baseline: Path, checkpoint_urls: dict[str, str]) -> dict:
+
+def build_script(destination: Path, baseline: Path, checkpoint_urls: dict[str, str], *,
+                 template: str = TEMPLATE) -> dict:
     root = Path(__file__).resolve().parents[2]
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as bundle:
@@ -96,7 +103,7 @@ def build_script(destination: Path, baseline: Path, checkpoint_urls: dict[str, s
     digest = hashlib.sha256(payload).hexdigest()
     commit = subprocess.run(['git','rev-parse','HEAD'],cwd=root,check=True,capture_output=True,
                             text=True).stdout.strip()
-    script = TEMPLATE.replace('__PAYLOAD__', repr(base64.b64encode(payload).decode()))
+    script = template.replace('__PAYLOAD__', repr(base64.b64encode(payload).decode()))
     script = script.replace('__COMMIT__', repr(commit)).replace('__DIGEST__', repr(digest))
     script = script.replace('__URLS__', repr(checkpoint_urls))
     destination.parent.mkdir(parents=True, exist_ok=True)

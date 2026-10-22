@@ -147,7 +147,7 @@ def check_batch_fits(model, dataset, recipe, config, device, pretrain: bool):
 def run_stage(stage: str, config: dict, archive: Path, manifest: dict, output: Path,
               device: torch.device, *, resume: bool = False, stop_after_epoch: int | None = None,
               smoke: bool = False, train_limit: int | None = None,
-              val_limit: int | None = None) -> dict:
+              val_limit: int | None = None, model_factory=None) -> dict:
     directory = output / stage
     directory.mkdir(parents=True, exist_ok=True)
     last_path = directory / "last.pt"
@@ -171,7 +171,8 @@ def run_stage(stage: str, config: dict, archive: Path, manifest: dict, output: P
         previous, run_id = None, None
     seed_everything(config["seed"])
     pretrain = stage == "pretrain"
-    model, source_hash = build_model(stage, config, output, device)
+    factory = model_factory or build_model
+    model, source_hash = factory(stage, config, output, device)
     images, labels = read_split(archive, "train", supervised=not pretrain)
     selected = np.arange(len(images)) if pretrain else np.array(manifest["indices"])
     if train_limit is not None:
@@ -287,7 +288,7 @@ def run_stage(stage: str, config: dict, archive: Path, manifest: dict, output: P
 
 
 def evaluate_stage(stage: str, config: dict, archive: Path, manifest: dict, output: Path,
-                   device: torch.device) -> dict:
+                   device: torch.device, *, model_factory=None) -> dict:
     directory = output / stage
     metadata = json.loads((directory / "run.json").read_text("utf-8"))
     if metadata["status"] != "completed" or metadata["smoke"]:
@@ -299,7 +300,8 @@ def evaluate_stage(stage: str, config: dict, archive: Path, manifest: dict, outp
     target = directory / "test.json"
     if target.exists():
         return json.loads(target.read_text("utf-8"))
-    model, _ = build_model(stage, config, output, device)
+    factory = model_factory or build_model
+    model, _ = factory(stage, config, output, device)
     load_checkpoint(directory / "best.pt", model, restore_random=False)
     images, labels = read_split(archive, "test", supervised=True)
     loader = make_loader(OrganDataset(images, labels), metadata["recipe"]["batch_size"],

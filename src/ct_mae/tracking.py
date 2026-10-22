@@ -30,11 +30,12 @@ class RunTracker:
                 raise RuntimeError(
                     f"Enable the {settings['secret_label']} Kaggle Secret before training"
                 ) from None
+        suffix = f"-{settings['run_name_suffix']}" if settings.get('run_name_suffix') else ""
         self.run = wandb.init(
             project=settings["project"], entity=settings["entity"], mode=settings["mode"],
             id=run_id, resume="must" if run_id and settings["mode"] == "online" else None,
-            name=f"{'smoke-' if smoke else ''}{stage}-seed{config['seed']}",
-            group=f"{'smoke-' if smoke else ''}ct-mae-seed{config['seed']}",
+            name=f"{'smoke-' if smoke else ''}{stage}{suffix}-seed{config['seed']}",
+            group=f"{'smoke-' if smoke else ''}ct-mae{suffix}-seed{config['seed']}",
             job_type=stage, config=config, dir=str(directory),
             settings=wandb.Settings(init_timeout=60),
         )
