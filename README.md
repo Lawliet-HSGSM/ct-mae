@@ -129,3 +129,12 @@ viewport 320/768/1024/1440 px. Data, venv, work files và reports được loạ
 
 Dataset: CC BY 4.0. Khi công bố kết quả, trích dẫn MedMNIST v2 (Yang et al.,
 Scientific Data, 2023) và các công trình dữ liệu nguồn theo hướng dẫn MedMNIST.
+
+## Phân tích sau baseline
+
+[FOLLOWUP.md](FOLLOWUP.md) mô tả thí nghiệm mở 3 block cuối từ cùng MAE checkpoint,
+phân tích lỗi từng cơ quan/ảnh và PCA/SVD của encoder trên test. Báo cáo thực tế
+nằm ở `D:\Development\SchoolProject\ct-mae\reports\followup\followup_report.html`;
+mở offline, có bộ lọc worst cases, biểu đồ tương tác và 19 hình PNG xuất riêng.
+Kết quả và giới hạn một seed được ghi trong tài liệu; dữ liệu, checkpoint và
+report không đưa vào Git.

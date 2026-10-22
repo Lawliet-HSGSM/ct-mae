@@ -26,6 +26,21 @@ def blocks(data):
         'classification tốt hơn mở toàn bộ encoder không? Mở 3 block cuối là một lựa chọn '
         'thử nghiệm, chưa phải số block đã được tối ưu.',
     ])
+    full_run, partial_run = data['runs']['finetune'], data['runs']['partial']
+    yield ('Chi phí huấn luyện đã đo', [
+        f'Partial cập nhật {partial_run["parameters"]["trainable"]:,} tham số so với '
+        f'{full_run["parameters"]["trainable"]:,} của full, khoảng '
+        f'{partial_run["parameters"]["trainable"] / full_run["parameters"]["trainable"]:.1%}. '
+        f'Peak VRAM trong train giảm từ {full_run["peak_vram_bytes"] / 1024**3:.2f} '
+        f'xuống {partial_run["peak_vram_bytes"] / 1024**3:.2f} GiB trên Tesla T4.',
+        f'Tổng thời gian các vòng lặp train là {full_run["train_loop_seconds"] / 60:.1f} '
+        f'phút ở full và {partial_run["train_loop_seconds"] / 60:.1f} phút ở partial. '
+        f'Cả giai đoạn gồm validation/checkpoint/log tương ứng '
+        f'{full_run["seconds_this_session"] / 60:.1f} và '
+        f'{partial_run["seconds_this_session"] / 60:.1f} phút. Chi phí validation vẫn '
+        'đáng kể vì cả hai dùng đầy đủ encoder. Đây là hai phiên Kaggle riêng, chưa '
+        'phải benchmark tốc độ được lặp nhiều lần.',
+    ])
     yield ('Thiết kế và kiểm tra tính công bằng', [
         'OrganAMNIST 128×128, grayscale, 11 lớp. Giữ split chính thức: train 34.561, '
         'validation 6.491, test 17.778. MAE học toàn bộ ảnh train và bỏ nhãn. Tất cả nhánh '
@@ -35,6 +50,9 @@ def blocks(data):
         'dùng. Chỉ mở block 10–12 (index 9–11), LayerNorm cuối và classifier. Patch embedding, '
         'CLS token và 9 block đầu giữ nguyên, ở chế độ eval. Các block được mở dùng '
         'stochastic depth 0.1 theo lịch của encoder; phần đóng băng không áp dụng nhiễu này.',
+        'Số tham số train giảm chủ yếu tác động đến backpropagation, bộ nhớ optimizer '
+        'và thời gian huấn luyện. Khi inference, cả full và partial vẫn chạy đủ 12 block '
+        'với cùng kiến trúc encoder.',
         'Encoder: 12 block, chiều 384, 6 attention heads, patch 8×8. Decoder MAE: 2 block, '
         'chiều 128, 4 heads; che 75% patch, masked MSE trên pixel [0,1]. Khi phân loại, bỏ '
         'decoder, dùng ảnh đầy đủ → trung bình 256 patch token sau LayerNorm → Linear(384,11).',
@@ -69,6 +87,19 @@ def blocks(data):
         'ô ngoài đường chéo cho biết nhầm từ lớp nào sang lớp nào. Phần trăm được chuẩn '
         'hóa theo hàng để so các lớp có số ảnh khác nhau; số tuyệt đối giúp hiểu quy mô lỗi.',
     ])
+    lung_full, lung_partial = (metrics[key]['per_class'][7] for key in ('finetune', 'partial'))
+    yield ('Partial cải thiện ở đâu và đánh đổi gì?', [
+        f'Precision phổi trái tăng từ {pct(lung_full["precision"])} lên '
+        f'{pct(lung_partial["precision"])}; recall tương ứng '
+        f'{pct(lung_full["recall"])} và {pct(lung_partial["recall"])}. Điều này phù '
+        'hợp với việc giảm tim/lách bị gán nhầm thành phổi trái, thay vì cải thiện '
+        'khả năng phân biệt hai lá phổi.',
+        f'F1 thận trái ở full là {pct(full["per_class"][4]["f1"])} và ở partial là '
+        f'{pct(partial["per_class"][4]["f1"])}; thận phải tương ứng '
+        f'{pct(full["per_class"][5]["f1"])} và {pct(partial["per_class"][5]["f1"])}. '
+        'Cả hai nhánh vẫn có lỗi đáng kể ở nhóm thận; Accuracy tổng thể cao hơn '
+        'không giải quyết hết vấn đề này.',
+    ])
     matrix = {key: np.array(metrics[key]['confusion']) for key in STAGES}
     for source, destination in ((7, 8), (8, 7), (3, 7), (10, 7)):
         values = ' → '.join(f'{NAMES[key]}: {matrix[key][source, destination]}'
@@ -89,6 +120,17 @@ def blocks(data):
         f'đồng thời làm sai {outcomes["regressed"]:,} ảnh mà full đúng. '
         f'{outcomes["both_wrong"]:,} ảnh bị cả hai dự đoán sai. Vì vậy phải xem cả ảnh '
         'được sửa lẫn ảnh bị giảm hiệu quả; chỉ chọn ảnh đẹp sẽ tạo kết luận thiên lệch.',
+    ])
+    yield ('Validation tốt có đồng nghĩa test tốt?', [
+        f'Full có validation macro-F1 {pct(data["runs"]["finetune"]["best_score"])} '
+        f'tại epoch được chọn, nhưng test macro-F1 là {pct(full["macro_f1"])}. '
+        f'Partial tương ứng là {pct(data["runs"]["partial"]["best_score"])} và '
+        f'{pct(partial["macro_f1"])}. Đây là chênh lệch giữa hai split, không phải '
+        'độ suy giảm được đo trên cùng ảnh.',
+        'Nguồn scan và mức độ khó có thể khác nhau giữa validation/test. Chỉ 16 scan '
+        'validation nên cần thận trọng khi tune nhiều cấu hình trên cùng tập này. '
+        'Chưa có scan ID để định lượng độ dao động theo ca; không suy ra số crop lớn '
+        'đồng nghĩa đánh giá đã toàn diện.',
     ])
     yield ('Worst cases và giới hạn của việc nhìn ảnh', [
         'Worst case ở đây là ảnh cụ thể, không chỉ tên lớp có F1 thấp. Nhóm worst được '
@@ -156,9 +198,9 @@ def blocks(data):
         'Nếu một cặp organ nhầm nhiều trên validation, trước tiên xem crop và nhãn; '
         'sau đó mới cân nhắc lấy mẫu thêm đúng nhóm đó. Nếu partial giữ được chất lượng '
         'mà ít tham số/thời gian hơn, đó là lợi ích thực dụng; nếu giảm, mở ít block '
-        'không phải lựa chọn tốt hơn ở recipe hiện tại. Muốn so sánh chắc hơn, ưu tiên '
+        'không phải lựa chọn tốt hơn với cấu hình hiện tại. Muốn so sánh chắc hơn, ưu tiên '
         'lặp 3 seed và chọn cấu hình bằng validation trước khi thử nhiều kiến trúc.',
-        'Không dùng test để chọn số block, LR, oversampling hoặc contrastive objective '
+        'Không dùng test để chọn số block, LR, oversampling hoặc mục tiêu học đối sánh '
         'rồi coi kết quả mới là kiểm định độc lập. Test đã được xem từ vòng trước: '
         'báo cáo này là phân tích khám phá. Một lượt partial không chứng minh quy tắc '
         '“chỉ full fine-tune khi domain shift lớn”; trong cùng domain vẫn có thể cần '
@@ -171,6 +213,9 @@ def write_reports(data: dict, output: Path):
     prose = list(blocks(data))
     observed_file = output / 'visual_observations.json'
     observations = json.loads(observed_file.read_text('utf-8')) if observed_file.exists() else []
+    embedding_file = output / 'embedding_observations.json'
+    embedding_notes = (json.loads(embedding_file.read_text('utf-8'))
+                       if embedding_file.exists() else [])
     overview_rows = [
         [NAMES[stage], pct(metrics[stage]['accuracy']), pct(metrics[stage]['macro_f1']),
          metrics[stage]['errors'], runs[stage]['best_epoch'],
@@ -306,6 +351,12 @@ def write_reports(data: dict, output: Path):
                             '|---|---:|---:|---:|\n'
                             + '\n'.join('| ' + ' | '.join(row) + ' |' for row in loss_rows))
         if title == 'PCA và SVD: nhìn biểu diễn encoder':
+            if embedding_notes:
+                parts.append('<aside><h3>Quan sát từ các phép chiếu thực tế</h3>')
+                for note in embedding_notes:
+                    parts.append(f'<p>{html.escape(note)}</p>')
+                    markdown.append(note + '\n')
+                parts.append('</aside>')
             parts.append(table(['Encoder', 'PCA: phương sai 2D', 'SVD: năng lượng 2D',
                                 'SVD: phương sai đã trừ mean', 'Cùng nhãn / 10 láng giềng'],
                                projection_rows))
