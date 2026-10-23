@@ -162,3 +162,15 @@ có bố cục tương tự nhưng kết quả dự đoán khác nhau. Trang off
 `reports/followup/crop_review.html` có 8 ảnh tham chiếu thận phải, ảnh đúng/được
 sửa đúng để đối chiếu, chế độ pixel 1:1 và ba resolution 28/64/128. Dùng lại các
 prediction đã có; đây là phân tích hình ảnh, chưa xác định nguyên nhân lỗi.
+
+Đối chiếu riêng ảnh test #10267 với lớp tụy:
+
+```powershell
+uv run python scripts/visualize_pancreas.py --root .
+uv run python scripts/check_pancreas_review.py reports/followup/pancreas_review.html
+```
+
+Trang `reports/followup/pancreas_review.html` có 15 mẫu ngẫu nhiên seed 42,
+15 mẫu gần tham chiếu theo MSE bố cục pixel và toàn bộ 1.622 ảnh test mang nhãn
+tụy. Hiển thị nhãn dataset cùng dự đoán của bốn model 5%; PNG giữ nguyên pixel.
+Hai lưới ảnh lớn nằm trong `reports/followup/figures/pancreas_*_10267.png`.
