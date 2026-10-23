@@ -1,0 +1,11 @@
+.comparisons{--card-min:250px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--card-min)),1fr));gap:16px}
+.comparisons article,.resolutions article{border:1px solid #d7e1ea;border-radius:8px;padding:16px;min-width:0}
+.comparisons h3{font-size:16px;line-height:1.4;margin:0 0 12px;min-height:45px}
+.image-frame{overflow:auto;background:#f4f6f8;border:1px solid #d7e1ea;text-align:center;padding:8px}
+.image-frame img{display:block;margin:auto;max-width:none;image-rendering:pixelated}
+.case-index{display:block;margin:12px 0 6px}.prediction{font-size:13px;line-height:1.6}
+#selection,#evidence,#pool-counts{color:#4b6074}.empty{font-size:14px;color:#53677a}
+.resolutions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.resolutions h3{font-size:17px;margin:0 0 12px}.resolutions img{width:128px;height:128px}
+select:focus-visible,a:focus-visible{outline:3px solid #137c87;outline-offset:3px}
+@media(max-width:600px){.resolutions{grid-template-columns:1fr}.comparisons h3{min-height:0}}

@@ -154,3 +154,11 @@ optimizer updates. Báo cáo có bảng từng organ, confusion matrix, đườn
 Báo cáo offline:
 `D:\Development\SchoolProject\ct-mae\reports\label-study\label_efficiency_report.html`.
 Bản Markdown, JSON và các hình PNG nằm cùng thư mục.
+
+## Đối chiếu crop cùng organ
+
+[CROP_REVIEW.md](CROP_REVIEW.md) ghi cách kiểm tra pixel gốc và chọn ảnh cùng nhãn,
+có bố cục tương tự nhưng kết quả dự đoán khác nhau. Trang offline
+`reports/followup/crop_review.html` có 8 ảnh tham chiếu thận phải, ảnh đúng/được
+sửa đúng để đối chiếu, chế độ pixel 1:1 và ba resolution 28/64/128. Dùng lại các
+prediction đã có; đây là phân tích hình ảnh, chưa xác định nguyên nhân lỗi.

@@ -314,6 +314,12 @@ def write_reports(data: dict, output: Path):
             parts.append('<h3>12 hướng nhầm nhiều nhất của full fine-tuning</h3>' + table(
                 ['Thật', 'Dự đoán', 'Scratch', 'Full', 'Partial', '% lớp thật ở Full'], pairs))
         if title == 'Worst cases và giới hạn của việc nhìn ảnh':
+            if (output / 'crop_review.html').exists():
+                parts.append('<p><a href="crop_review.html">Đối chiếu cùng organ: pixel gốc, '
+                             'ảnh đúng và ảnh được sửa đúng</a> — có chế độ 1:1 và so '
+                             'ba resolution chính thức.</p>')
+                markdown.append('[Đối chiếu crop cùng organ, ảnh đúng và ảnh được sửa đúng]'
+                                '(crop_review.html)\n')
             if observations:
                 parts.append('<aside><h3>Quan sát trực tiếp từ ảnh</h3>')
                 for item in observations:

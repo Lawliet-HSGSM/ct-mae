@@ -1,0 +1,53 @@
+<!doctype html><html lang="vi"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CT-MAE · Đối chiếu crop cùng organ</title><style>__STYLE__</style><body><main>
+<header><p class="eyebrow">CT-MAE · ĐỐI CHIẾU ẢNH · 5% NHÃN</p>
+<h1>Ảnh mờ do đâu?</h1><p class="lead">Xem pixel gốc và đối chiếu các ảnh cùng organ,
+có bố cục tương tự nhưng kết quả dự đoán khác nhau.</p>
+<a href="followup_report.html">← Báo cáo follow-up</a></header>
+<section><h2>Phân biệt crop, resize và phóng ảnh</h2>
+<p><strong>Crop</strong> lấy một vùng của ảnh, có thể bỏ mất ngữ cảnh ngoài khung.
+<strong>Resize</strong> thay đổi số pixel của vùng đã chọn; thu nhỏ có thể mất chi tiết,
+phóng lớn cần nội suy nhưng không thêm thông tin gốc.
+<strong>Phóng khi hiển thị</strong> chỉ thay đổi cách xem trên trình duyệt.</p>
+<p>OrganAMNIST128 được tạo bằng cách resize crop từ dữ liệu nguồn; không phải phóng
+từ bản 28×28. Các bản 28/64/128 dùng cùng index và quy trình crop nguồn.
+<a href="https://github.com/MedMNIST/MedMNIST/blob/main/on_medmnist_plus.md#organacsmnist">Quy trình chính thức</a>.</p>
+<p id="evidence"></p>
+<aside>Không có ảnh trước crop, kích thước crop nguồn, bounding box hay mask cơ quan
+trong NPZ hiện có. Vì vậy chưa tách được bao nhiêu độ mờ đến từ CT nguồn và bao nhiêu
+đến từ resize; cũng chưa xác nhận được từng crop đã cắt mất phần nào của organ.</aside></section>
+<section><h2>Đối chiếu cùng organ</h2><p id="pool-counts"></p>
+<p>Mỗi nhóm lấy ba ứng viên gần nhất theo MSE của ảnh xám được lấy trung bình xuống
+32×32, giữ nguyên thang sáng. Đây là độ giống bố cục pixel, chưa xác nhận giống nhau
+về giải phẫu. Tất cả ứng viên có cùng nhãn thật. Một ảnh đối chiếu có thể lặp lại
+ở nhiều tham chiếu; hình tương tự chưa có nghĩa là các ca chụp độc lập.</p>
+<div class="controls">
+<label>Ảnh tham chiếu<select id="reference"></select></label>
+<label>Hạng ảnh đối chiếu<select id="rank"><option value="0">Gần nhất</option>
+<option value="1">Gần thứ 2</option><option value="2">Gần thứ 3</option></select></label>
+<label>Kích thước xem ảnh 128×128<select id="scale"><option value="1">1:1 · 128 px</option>
+<option value="2">2× · 256 px</option><option value="3">3× · 384 px</option></select></label>
+<label>Cách phóng ảnh<select id="smoothing"><option value="pixelated">Giữ từng pixel</option>
+<option value="auto">Làm mượt khi hiển thị</option></select></label></div>
+<p id="selection" aria-live="polite"></p><div id="comparisons" class="comparisons"></div>
+<p>Đúng/sai được xác định theo nhãn dataset. Phần trăm trong từng thẻ là softmax của
+dự đoán đó, chưa hiệu chuẩn; không phải xác suất đã xác minh rằng ảnh đúng.</p></section>
+<section><h2>Cùng ảnh tham chiếu ở ba resolution chính thức</h2>
+<p>Ba ảnh dưới đều được hiển thị trong khung 128×128 CSS px để so chi tiết trên cùng
+kích thước. Bản 28 và 64 được phóng ở đây. Các model đang đối chiếu chỉ được đánh
+giá bằng bản 128; đây không phải thí nghiệm accuracy theo resolution.</p>
+<div id="resolutions" class="resolutions"></div></section>
+<section><h2>Cách dùng để kiểm tra giả thuyết về dữ liệu</h2>
+<p>So ảnh tham chiếu với cả ảnh được đoán đúng và ảnh được SSL hoặc partial sửa đúng.
+Xem vùng tối, vị trí các mảng sáng, đường biên và mức chi tiết nào xuất hiện trong
+cả hai nhóm. Một số ảnh đúng cũng mờ sẽ làm cách giải thích “cứ mờ là sai” chưa đủ.</p>
+<p>Đây là tập ví dụ đã chọn theo kết quả test và độ giống bố cục, không phải mẫu ngẫu
+nhiên để ước lượng chất lượng toàn dataset hoặc chứng minh nguyên nhân. Chưa có
+thay đổi dữ liệu train, trọng số, augmentation hoặc oversampling.</p>
+<p>Phần mềm chỉ phóng ảnh để xem; mọi PNG được mã hóa trực tiếp từ array uint8 và
+đã được giải mã kiểm tra trùng từng pixel. JSON và hình PNG đối chiếu nằm cùng báo cáo.</p>
+<p><a href="figures/crop_review_pairs.png">Mở hình đối chiếu tĩnh</a> ·
+<a href="crop_review.json">Dữ liệu và quy tắc chọn ảnh</a></p></section>
+</main><script id="review-data" type="application/json">__DATA__</script>
+<script>__SCRIPT__</script></body></html>
