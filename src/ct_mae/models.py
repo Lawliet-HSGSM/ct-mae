@@ -234,10 +234,13 @@ class OrganClassifier(nn.Module):
                 self.encoder.norm.train()
         return self
 
-    def forward(self, images: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, images: torch.Tensor) -> torch.Tensor:
         if self.frozen:
             with torch.no_grad():
                 tokens, _, _ = self.encoder(images)
         else:
             tokens, _, _ = self.encoder(images)
-        return self.head(tokens[:, 1:].mean(dim=1))
+        return tokens[:, 1:].mean(dim=1)
+
+    def forward(self, images: torch.Tensor) -> torch.Tensor:
+        return self.head(self.forward_features(images))
