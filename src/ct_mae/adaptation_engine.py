@@ -31,7 +31,7 @@ def train_adaptation_epoch(model, loader, optimizer, scaler, recipe, epoch, weig
     weights = weights.to(device)
     iterator = iter(loader)
     seen = count = updates = skipped = 0
-    raw_total = weighted_total = weight_total = sup_total = lambda_total = 0.
+    raw_total = weighted_total = weight_total = sup_total = lambda_total = scaled_sup_total = 0.
     labels, predicted, gradient_norms = [], [], []
     started = time.perf_counter()
     while group := list(itertools.islice(iterator, recipe['accumulation'])):
@@ -62,6 +62,7 @@ def train_adaptation_epoch(model, loader, optimizer, scaler, recipe, epoch, weig
             weighted_total += float(numerator.detach())
             weight_total += float(assigned)
             sup_total += float(sup.detach()) * len(target)
+            scaled_sup_total += coefficient * float(sup.detach()) * len(target)
             lambda_total += coefficient * len(target)
             labels.extend(target.cpu().tolist())
             probabilities = logits.detach().float().softmax(-1).reshape(len(target), 2, -1)
@@ -83,7 +84,7 @@ def train_adaptation_epoch(model, loader, optimizer, scaler, recipe, epoch, weig
     if device.type == 'cuda':
         torch.cuda.synchronize(device)
     ce, wce = raw_total / (2 * count), weighted_total / weight_total
-    result = {'loss': wce + lambda_total / count * sup_total / count,
+    result = {'loss': wce + scaled_sup_total / count,
               'ce': ce, 'weighted_ce': wce, 'supcon': sup_total / count,
               'lambda': lambda_total / count, 'lr': rate, 'seconds': time.perf_counter() - started,
               'samples': count, 'views': count * 2, 'optimizer_steps': updates - skipped,

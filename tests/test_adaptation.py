@@ -43,7 +43,7 @@ def test_views_are_reproducible_distinct_and_do_not_change_global_rng():
 def test_supcon_matches_soft_target_cross_entropy_and_gradient():
     torch.manual_seed(42)
     z = torch.randn(6, 4, dtype=torch.float64, requires_grad=True)
-    y = torch.tensor([0, 0, 1, 1, 2, 2])
+    y = torch.tensor([0, 0, 0, 0, 1, 1])
     actual = supcon_loss(z, y, temperature=.1)
     normalized = F.normalize(z.float(), dim=-1)
     logits = normalized @ normalized.T / .1

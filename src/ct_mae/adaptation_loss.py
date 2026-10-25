@@ -33,7 +33,9 @@ class AdaptationClassifier(OrganClassifier):
         if contrastive:
             with torch.random.fork_rng(devices=[]):
                 torch.random.default_generator.manual_seed(seed + 1907)
-                self.projector = nn.Sequential(nn.Linear(384, 384), nn.ReLU(), nn.Linear(384, 128))
+                dimension = config['encoder_dim']
+                self.projector = nn.Sequential(nn.Linear(dimension, dimension), nn.ReLU(),
+                                               nn.Linear(dimension, 128))
 
     def adaptation_forward(self, images):
         features = self.forward_features(images)
