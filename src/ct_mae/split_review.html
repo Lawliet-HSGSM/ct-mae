@@ -16,6 +16,9 @@ __INSIGHTS__
 <p>Giả sử giữ nguyên tỷ lệ đúng của từng organ trên validation, chỉ thay tỷ trọng organ
 thành tỷ trọng của test: đó là phần “do tỷ trọng lớp”. Phần còn lại phản ánh model
 đoán kém/tốt hơn trong từng organ trên test. Đây là phép phân rã số học, chưa phải kết luận nguyên nhân.</p>
+<p>Prediction được đối chiếu đủ index/nhãn với NPZ chính thức và cùng checkpoint nguồn.
+Cả validation và test đều dùng ảnh xám chia 255, không augmentation, ở chế độ eval
+và AMP FP16. Hai tập không dùng hai cách chuẩn hóa hay hai checkpoint khác nhau.</p>
 <figure><img id="recall-gap" alt="Recall validation và test của từng organ">
 <figcaption>Recall: trong tất cả ảnh thực sự thuộc organ này, bao nhiêu ảnh được đoán đúng.</figcaption></figure>
 <aside><strong>Một organ nên xem trước</strong><p>__KIDNEY__</p></aside>
