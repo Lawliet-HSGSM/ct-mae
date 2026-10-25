@@ -145,12 +145,21 @@ def run_variant(sources, output, scope, variant, dataset, selected_labels, valid
         save_best(0, initial)
     effective_weights = torch.tensor(weights if variant in ('C', 'E') else np.ones(11),
                                      dtype=torch.float32)
+    trace_path = directory / 'sampling_trace.npz'
+    traces = {}
+    if trace_path.exists():
+        with np.load(trace_path, allow_pickle=False) as saved:
+            traces = {key: saved[key] for key in saved.files}
     status = 'failed'
     try:
         for epoch in range(start, min(recipe['epochs'], stop_after or recipe['epochs'])):
             if device.type == 'cuda':
                 torch.cuda.reset_peak_memory_stats(device)
             loader = training_loader(dataset, selected_labels, recipe, variant, epoch, workers)
+            positions = np.array([i for batch in loader.batch_sampler for i in batch])
+            actual_indices = dataset.indices[positions].astype('<i8')
+            if not np.array_equal(np.sort(actual_indices), np.sort(dataset.indices)):
+                raise RuntimeError('Sampler lost or repeated an official training index')
             train = train_adaptation_epoch(model, loader, optimizer, scaler, recipe, epoch,
                                            effective_weights, device=device, amp=amp,
                                            contrastive=variant in ('D', 'E'))
@@ -161,6 +170,12 @@ def run_variant(sources, output, scope, variant, dataset, selected_labels, valid
             resources = {'peak_vram_bytes': torch.cuda.max_memory_allocated(device)
                          if device.type == 'cuda' else 0}
             row = {'epoch': epoch + 1, 'train': train, 'val': val, 'resource': resources}
+            trace_hash = hashlib.sha256(actual_indices.tobytes()).hexdigest()
+            row['sampling'] = {'indices_sha256': trace_hash,
+                               'class_counts': np.bincount(selected_labels[positions],
+                                                           minlength=11).tolist()}
+            traces[f'epoch_{epoch + 1}'] = actual_indices
+            np.savez_compressed(trace_path, **traces)
             if (epoch + 1) % 10 == 0 or epoch + 1 == recipe['epochs']:
                 row['train_clean'] = evaluate(model, clean_train, device=device, pretrain=False,
                                               seed=42, amp=amp)

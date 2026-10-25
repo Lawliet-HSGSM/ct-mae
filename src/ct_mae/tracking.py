@@ -67,6 +67,8 @@ class RunTracker:
                                  metadata={"completed_epoch": epoch})
         for filename in ("last.pt", "best.pt", "run.json"):
             artifact.add_file(str(directory / filename), name=filename)
+        if (directory / 'sampling_trace.npz').exists():
+            artifact.add_file(str(directory / 'sampling_trace.npz'), name='sampling_trace.npz')
         self.run.log_artifact(artifact, aliases=["latest", f"epoch-{epoch}"]).wait()
 
     def finish(self, status: str, summary: dict | None = None) -> None:
