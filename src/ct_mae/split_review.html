@@ -5,7 +5,7 @@
 <h1>Vì sao validation cao hơn test?</h1><p class="lead">Đặt train gốc, train sau augmentation,
 validation và test cạnh nhau — cùng organ, giữ nguyên pixel nguồn 128×128.</p>
 <p>Classifier đang đối chiếu: nguồn 5% full (epoch 70) và partial (epoch 25).
-Job học tiếp 10% đang chạy riêng, giữ nguyên cấu hình đã chốt.</p></header>
+Thí nghiệm học tiếp 10% chạy riêng, theo cấu hình đã chốt trước bản đối chiếu này.</p></header>
 <nav><a href="#examples">Xem bốn nhóm ảnh</a> ·
 <a href="#pixels">Đặc tính và nhóm lỗi</a> · <a href="#augmentation">Về augmentation</a></nav>
 <section><h2>Khoảng cách nằm ở đâu?</h2>
@@ -26,7 +26,7 @@ và AMP FP16. Hai tập không dùng hai cách chuẩn hóa hay hai checkpoint k
 alt="Tỷ trọng organ trong train, tập 5%, validation và test"></details></section>
 <section id="examples"><h2>Xem ảnh cùng organ ở bốn điều kiện</h2>
 <p>Train gốc và train augment trong cùng hàng là <strong>cùng ảnh</strong>.
-Validation/test là ảnh khác có cùng nhãn, không phải cùng bệnh nhân hay cùng lát cắt.
+Validation/test là ảnh khác có cùng nhãn, không được ghép theo cùng bệnh nhân hay lát cắt.
 Mẫu ngẫu nhiên lấy seed 42; nhóm đúng/sai cũng lấy ngẫu nhiên trong nhóm tương ứng.</p>
 <p>Gallery không dùng để ước lượng tỷ lệ lỗi. Những tỷ lệ ở bảng và biểu đồ được tính
 trên toàn bộ tập tương ứng.</p>
