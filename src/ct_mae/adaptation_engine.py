@@ -37,7 +37,8 @@ def train_adaptation_epoch(model, loader, optimizer, scaler, recipe, epoch, weig
     while group := list(itertools.islice(iterator, recipe['accumulation'])):
         progress = epoch + seen / len(loader)
         rate = learning_rate(progress, recipe, recipe['min_lr'])
-        coefficient = .05 * min(1., progress / 5) if contrastive else 0.
+        coefficient = .05 * min(1., progress / recipe.get('lambda_warmup_epochs', 5)) if (
+            contrastive) else 0.
         for bucket in optimizer.param_groups:
             bucket['lr'] = rate * bucket.get('lr_multiplier', 1)
         size = sum(len(batch['label']) for batch in group)

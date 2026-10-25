@@ -24,12 +24,23 @@ from ct_mae.engine import (
     save_checkpoint,
     seed_everything,
 )
+from ct_mae.label_study import nested_indices
 from ct_mae.pipeline import environment_info, make_loader, sha256_file
 from ct_mae.tracking import RunTracker
 
 VARIANTS = ('A', 'B', 'C', 'D', 'E')
 RECIPE = dict(epochs=50, lr=3e-5, min_lr=1e-6, warmup_epochs=5,
               batch_size=32, accumulation=2)
+
+
+def matched_recipe(recipe, labeled_count):
+    if labeled_count not in (1728, 3456):
+        raise ValueError('Only the original 5% and nested 10% budgets are supported')
+    result = copy.deepcopy(recipe)
+    if labeled_count == 3456:
+        result.update(epochs=25, warmup_epochs=2.5, lambda_warmup_epochs=2.5,
+                      labeled_count=3456, run_name_suffix='adaptation10pct')
+    return result
 
 
 def build_model(sources, scope, variant, *, seed=42, device=None):
@@ -102,7 +113,8 @@ def run_variant(sources, output, scope, variant, dataset, selected_labels, valid
     directory.mkdir(parents=True, exist_ok=True)
     source_manifest = json.loads((sources / 'source_manifest.json').read_text('utf-8'))
     baseline = json.loads((sources / 'baseline.json').read_text('utf-8'))
-    config = {'seed': 42, 'wandb': {**baseline['wandb'], 'run_name_suffix': 'adaptation5pct'},
+    config = {'seed': 42, 'wandb': {**baseline['wandb'], 'run_name_suffix': recipe.get(
+        'run_name_suffix', 'adaptation5pct')},
               'model': baseline['model'],
               'scope': scope, 'variant': variant, 'recipe': recipe, 'smoke': smoke,
               'class_weights': weights.tolist(), 'source_manifest': source_manifest}
@@ -212,7 +224,7 @@ def run_variant(sources, output, scope, variant, dataset, selected_labels, valid
     return metadata
 
 
-def run_study(sources, archive, output, device, *, smoke=False, workers=2):
+def run_study(sources, archive, output, device, *, smoke=False, workers=2, labeled_count=1728):
     output.mkdir(parents=True, exist_ok=True)
     manifest = json.loads((sources / 'subset.json').read_text('utf-8'))
     selected = np.array(manifest['indices'], dtype=np.int64)
@@ -221,19 +233,35 @@ def run_study(sources, archive, output, device, *, smoke=False, workers=2):
         raise ValueError('Dataset or 5% labeled subset checksum differs')
     images, labels = read_split(archive, 'train', supervised=True)
     val_images, val_labels = read_split(archive, 'val', supervised=True)
+    if len(selected) != 1728:
+        raise ValueError('The warm-start classifiers must use the original 1,728 labels')
+    parent_digest = digest
+    if labeled_count == 3456:
+        selected = nested_indices(labels, selected, labeled_count, 42)
+    elif labeled_count != 1728:
+        raise ValueError('Only 5% or nested 10% adaptation is supported')
+    digest = hashlib.sha256(selected.astype('<i8').tobytes()).hexdigest()
+    subset = {**manifest, 'indices': selected.tolist(), 'indices_sha256': digest,
+              'labeled_count': len(selected), 'parent_indices_sha256': parent_digest,
+              'train_label_fraction': len(selected) / len(labels),
+              'labeled_class_counts': np.bincount(labels[selected], minlength=11).tolist()}
+    subset_path = output / 'subset.json'
+    if subset_path.exists() and json.loads(subset_path.read_text('utf-8')) != subset:
+        raise ValueError('Output already holds a different labeled subset')
+    write_json(subset_path, subset)
     if smoke:
         selected = selected[select_labeled_indices(labels[selected], 128, 42)]
         val_indices = select_labeled_indices(val_labels, 128, 42)
     else:
-        if len(selected) != 1728:
-            raise ValueError('Production adaptation requires the original 1,728 labels')
         val_indices = np.arange(len(val_labels))
     dataset = TwinViewDataset(images, labels, selected)
     validation = make_loader(OrganDataset(val_images, val_labels, val_indices), 64, workers,
                              seed=42, shuffle=False)
     clean_train = make_loader(OrganDataset(images, labels, selected), 64, workers,
                               seed=42, shuffle=False)
-    recipe = profile_recipe(sources, dataset, device)
+    recipe = matched_recipe(profile_recipe(sources, dataset, device), labeled_count)
+    if labeled_count == 3456:
+        recipe['labeled_subset_sha256'] = digest
     if smoke:
         recipe.update(epochs=2, warmup_epochs=0)
     counts = np.bincount(labels[selected], minlength=11)
@@ -255,7 +283,10 @@ def run_study(sources, archive, output, device, *, smoke=False, workers=2):
                 'subset_sha256': digest, 'actual_train_indices': selected.tolist(),
                 'train_class_counts': counts.tolist(), 'initial_validation': initial,
                 'class_weights': {key: value.tolist() for key, value in weights.items()},
-                'view_count': 2, 'temperature': .1, 'lambda_max': .05, 'lambda_warmup_epochs': 5,
+                'view_count': 2, 'temperature': .1, 'lambda_max': .05,
+                'lambda_warmup_epochs': recipe.get('lambda_warmup_epochs', 5),
+                'labeled_count': labeled_count, 'parent_subset_sha256': parent_digest,
+                'budget_policy': '1350 updates; LR and lambda warmup matched by update count',
                 'validation_role': 'design weights/pairs and select checkpoints; no gradients'}
     protocol_path = output / 'protocol.json'
     if protocol_path.exists() and json.loads(protocol_path.read_text('utf-8')) != json.loads(
@@ -286,10 +317,11 @@ def main():
     parser.add_argument('--smoke', action='store_true')
     parser.add_argument('--device', choices=('cpu', 'cuda'), default='cuda')
     parser.add_argument('--workers', type=int, default=2)
+    parser.add_argument('--labeled-count', type=int, choices=(1728, 3456), default=1728)
     args = parser.parse_args()
     archive = fetch_asset(official_asset(128), args.data_dir)
     run_study(args.sources, archive, args.output, torch.device(args.device),
-              smoke=args.smoke, workers=args.workers)
+              smoke=args.smoke, workers=args.workers, labeled_count=args.labeled_count)
 
 
 if __name__ == '__main__':

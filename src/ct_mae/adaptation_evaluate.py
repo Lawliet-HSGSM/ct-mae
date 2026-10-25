@@ -31,7 +31,8 @@ def freeze_selection(output, protocol):
                 'val_macro_f1': protocol['initial_validation'][scope]['macro_f1']}
         for variant in VARIANTS:
             record = json.loads((output / scope / variant / 'run.json').read_text('utf-8'))
-            if record['status'] != 'completed' or record['completed_epochs'] != 50:
+            if record['status'] != 'completed' or record['completed_epochs'] != (
+                    protocol.get('recipe', {}).get('epochs', 50)):
                 raise ValueError('All production adaptations must finish before test evaluation')
             if record['best_score'] > best['val_macro_f1']:
                 best = {'variant': variant, 'epoch': record['best_epoch'],

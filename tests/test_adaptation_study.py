@@ -6,10 +6,10 @@ import torch
 
 from ct_mae.adaptation_data import TwinViewDataset
 from ct_mae.adaptation_evaluate import calibration, freeze_selection
-from ct_mae.adaptation_study import build_model, run_variant
+from ct_mae.adaptation_study import RECIPE, build_model, matched_recipe, run_variant
 from ct_mae.config import load_config, write_json
 from ct_mae.data import OrganDataset
-from ct_mae.engine import evaluate
+from ct_mae.engine import evaluate, learning_rate
 from ct_mae.models import OrganClassifier
 from ct_mae.pipeline import make_loader, sha256_file
 
@@ -76,6 +76,18 @@ def test_full_adaptation_resume_preserves_next_update_including_projector(tmp_pa
 def test_calibration_handles_confidence_one_and_empty_bins():
     result = calibration([0, 1], [[1, 0], [0, 1]])
     assert result == {'nll': 0., 'ece_15': 0.}
+
+
+def test_nested_ten_percent_matches_optimizer_budget_and_lr_contrastive_schedule():
+    old, new = matched_recipe(RECIPE, 1728), matched_recipe(RECIPE, 3456)
+    assert 50 * 1728 // 64 == new['epochs'] * 3456 // 64 == 1350
+    for update in range(1350):
+        old_progress, new_progress = update / 27, update / 54
+        assert np.isclose(learning_rate(old_progress, old, 1e-6),
+                          learning_rate(new_progress, new, 1e-6), rtol=0, atol=1e-18)
+        assert np.isclose(min(old_progress / 5, 1),
+                          min(new_progress / new['lambda_warmup_epochs'], 1))
+    assert RECIPE['epochs'] == 50
 
 
 def test_selection_preserves_epoch_zero_and_earliest_variant_ties(tmp_path):

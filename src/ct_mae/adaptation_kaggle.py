@@ -54,9 +54,13 @@ print("ADAPTATION COMPLETE",flush=True)
 '''
 
 
-def build_adaptation_script(destination, sources, urls):
-    template = BOOTSTRAP.replace('__RUN_COMMANDS__', COMMANDS)
-    template = template.replace('ct-mae-followup', 'ct-mae-adaptation')
+def build_adaptation_script(destination, sources, urls, *, labeled_count=1728):
+    if labeled_count not in (1728, 3456):
+        raise ValueError('Only 5% and nested 10% are supported')
+    commands = COMMANDS.replace('str(data)]', f'str(data),"--labeled-count","{labeled_count}"]')
+    template = BOOTSTRAP.replace('__RUN_COMMANDS__', commands)
+    root = 'ct-mae-adaptation10pct' if labeled_count == 3456 else 'ct-mae-adaptation'
+    template = template.replace('ct-mae-followup', root)
     return build_script(destination, sources, urls, template=template)
 
 

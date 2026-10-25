@@ -48,9 +48,20 @@ def verify_artifacts(output, sources, archive):
     if protocol['source_manifest'] != expected or protocol['smoke']:
         raise ValueError('Wrong checkpoint sources or diagnostic outputs')
     indices = np.array(protocol['actual_train_indices'], dtype=np.int64)
-    if len(indices) != 1728 or hashlib.sha256(indices.astype('<i8').tobytes()).hexdigest() != (
-            protocol['subset_sha256']):
+    count = protocol.get('labeled_count', 1728)
+    epochs = protocol['recipe']['epochs']
+    if (count not in (1728, 3456) or len(indices) != count
+            or len(np.unique(indices)) != count
+            or hashlib.sha256(indices.astype('<i8').tobytes()).hexdigest() != (
+                protocol['subset_sha256'])):
         raise ValueError('Training label subset changed')
+    parent = json.loads((sources / 'subset.json').read_text('utf-8'))
+    if not np.isin(parent['indices'], indices).all():
+        raise ValueError('Adaptation omitted original supervised labels')
+    if count == 3456:
+        if epochs != 25 or protocol['recipe']['warmup_epochs'] != 2.5 or (
+                protocol['lambda_warmup_epochs'] != 2.5):
+            raise ValueError('10% adaptation did not match the original update schedule')
     with np.load(archive, allow_pickle=False) as saved:
         train_labels = saved['train_labels'].reshape(-1)[indices]
         val_labels = saved['val_labels'].reshape(-1)
@@ -77,8 +88,8 @@ def verify_artifacts(output, sources, archive):
         for variant in 'ABCDE':
             directory = output / scope / variant
             run = json.loads((directory / 'run.json').read_text('utf-8'))
-            if (run['status'] != 'completed' or run['completed_epochs'] != 50
-                    or len(run['history']) != 50 or run['config']['seed'] != 42):
+            if (run['status'] != 'completed' or run['completed_epochs'] != epochs
+                    or len(run['history']) != epochs or run['config']['seed'] != 42):
                 raise ValueError('Wrong adaptation budget')
             scores = [run['initial_val']['macro_f1']]
             scores += [h['val']['macro_f1'] for h in run['history']]
@@ -103,10 +114,11 @@ def verify_artifacts(output, sources, archive):
                     if hashlib.sha256(actual.astype('<i8').tobytes()).hexdigest() != (
                             row['sampling']['indices_sha256']):
                         raise ValueError('Sampling trace checksum differs from history')
-                    if (row['train']['samples'] != 1728 or row['train']['views'] != 3456
+                    if (row['train']['samples'] != count or row['train']['views'] != 2 * count
                             or row['val']['samples'] != 6491):
                         raise ValueError('Unexpected image/view/evaluation count')
-                    if row['train']['optimizer_steps'] + row['train']['skipped_steps'] != 27:
+                    if row['train']['optimizer_steps'] + row['train']['skipped_steps'] != (
+                            count // 64):
                         raise ValueError('Unexpected optimizer update budget')
             selected = torch.load(directory / 'best.pt', map_location='cpu', weights_only=True)
             last = torch.load(directory / 'last.pt', map_location='cpu', weights_only=True)
@@ -146,15 +158,16 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--sources', type=Path, required=True)
     parser.add_argument('--archive', type=Path, required=True)
+    parser.add_argument('--root-name', default=ROOT)
     args = parser.parse_args()
     if not args.verify_only:
         if args.manifest is None:
             parser.error('--manifest is required when downloading')
         files = json.loads(args.manifest.read_text('utf-8'))['files']
         files = [row for row in files
-                 if selected_path(row['file_name'], root_name=ROOT) is not None]
+                 if selected_path(row['file_name'], root_name=args.root_name) is not None]
         with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [executor.submit(fetch_file, row, args.output, root_name=ROOT)
+            futures = [executor.submit(fetch_file, row, args.output, root_name=args.root_name)
                        for row in files]
             for future in as_completed(futures):
                 print('COLLECTED', future.result(), flush=True)
