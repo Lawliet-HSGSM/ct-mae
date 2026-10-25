@@ -1,0 +1,86 @@
+<!doctype html><html lang="vi"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CT-MAE · Train, validation và test</title><style>__STYLE__</style><body><main>
+<header><p class="eyebrow">CT-MAE · ĐỐI CHIẾU CÁC TẬP DỮ LIỆU</p>
+<h1>Vì sao validation cao hơn test?</h1><p class="lead">Đặt train gốc, train sau augmentation,
+validation và test cạnh nhau — cùng organ, giữ nguyên pixel nguồn 128×128.</p>
+<p>Classifier đang đối chiếu: nguồn 5% full (epoch 70) và partial (epoch 25).
+Job học tiếp 10% đang chạy riêng, giữ nguyên cấu hình đã chốt.</p></header>
+<nav><a href="#examples">Xem bốn nhóm ảnh</a> ·
+<a href="#pixels">Đặc tính và nhóm lỗi</a> · <a href="#augmentation">Về augmentation</a></nav>
+<section><h2>Khoảng cách nằm ở đâu?</h2>
+<div class="table-wrap"><table><thead><tr><th>Classifier</th><th>Val Accuracy</th>
+<th>Test Accuracy</th><th>Do tỷ trọng lớp (đpt)</th><th>Do recall trong lớp (đpt)</th>
+</tr></thead><tbody>__ROWS__</tbody></table></div>
+__INSIGHTS__
+<p>Giả sử giữ nguyên tỷ lệ đúng của từng organ trên validation, chỉ thay tỷ trọng organ
+thành tỷ trọng của test: đó là phần “do tỷ trọng lớp”. Phần còn lại phản ánh model
+đoán kém/tốt hơn trong từng organ trên test. Đây là phép phân rã số học, chưa phải kết luận nguyên nhân.</p>
+<figure><img id="recall-gap" alt="Recall validation và test của từng organ">
+<figcaption>Recall: trong tất cả ảnh thực sự thuộc organ này, bao nhiêu ảnh được đoán đúng.</figcaption></figure>
+<aside><strong>Một organ nên xem trước</strong><p>__KIDNEY__</p></aside>
+<details><summary>Phân bố organ giữa các tập</summary><img id="class-mix" class="chart"
+alt="Tỷ trọng organ trong train, tập 5%, validation và test"></details></section>
+<section id="examples"><h2>Xem ảnh cùng organ ở bốn điều kiện</h2>
+<p>Train gốc và train augment trong cùng hàng là <strong>cùng ảnh</strong>.
+Validation/test là ảnh khác có cùng nhãn, không phải cùng bệnh nhân hay cùng lát cắt.
+Mẫu ngẫu nhiên lấy seed 42; nhóm đúng/sai cũng lấy ngẫu nhiên trong nhóm tương ứng.</p>
+<p>Gallery không dùng để ước lượng tỷ lệ lỗi. Những tỷ lệ ở bảng và biểu đồ được tính
+trên toàn bộ tập tương ứng.</p>
+<div class="controls">
+<label>Organ<select id="organ"></select></label>
+<label>Nguồn train<select id="train-pool"><option value="train5">1.728 ảnh có nhãn gốc</option>
+<option value="train_all">Toàn bộ 34.561 ảnh train</option>
+<option value="added5">1.728 ảnh mới thêm cho mốc 10%</option></select></label>
+<label>Classifier<select id="model"><option value="full">Full nguồn 5%</option>
+<option value="partial">Partial nguồn 5%</option></select></label>
+<label>Nhóm val/test<select id="mode"><option value="random">Ngẫu nhiên toàn bộ</option>
+<option value="wrong">Chỉ ảnh đoán sai</option><option value="correct">Chỉ ảnh đoán đúng</option></select></label>
+<label>Trang mẫu<select id="page"><option value="0">1 · mẫu 1–8</option>
+<option value="1">2 · mẫu 9–16</option></select></label>
+<label>Augmentation minh họa<select id="view"><option value="0">View 1</option>
+<option value="1">View 2</option></select></label>
+<label>Cỡ hiển thị<select id="scale"><option value="128">1:1 · 128 px</option>
+<option value="256">2× · 256 px</option></select></label></div>
+<p id="pool-info" aria-live="polite"></p>
+<div id="comparison" class="split-grid"></div>
+<p>Ảnh nguồn dùng PNG lossless, thang xám cố định 0–255, không tự tăng tương phản.
+PNG augment chỉ lượng tử hóa về uint8 để xem; tensor train là float32.
+Confidence là softmax chưa hiệu chuẩn. Không suy ra tên cơ quan từ màu đen riêng lẻ.</p></section>
+<section id="pixels"><h2>Đặc tính pixel có khác nhau không?</h2>
+<p>Các hình dưới dùng <strong>toàn bộ ảnh</strong> của organ đang chọn, không chỉ gallery.
+Train augment: một view cố định của từng ảnh trong tập 1.728 nhãn gốc, seed 42, epoch 0.</p>
+<p>Pixel được chia 255 trước khi tính: độ sáng trung bình 0,5 tương ứng khoảng mức xám 128;
+tỷ lệ tối 0,04 nghĩa là 4% pixel. Viền fill 0 cũng ảnh hưởng các chỉ số, không chỉ mô bên trong ảnh.</p>
+<figure><img id="pixel-chart" alt="Phân bố đặc tính pixel trong cùng organ">
+<figcaption>Đường biên mạnh có thể do anatomy, nhiễu, mức tương phản hoặc viền crop.
+Những con số này là mô tả pixel, không phải đánh giá chất lượng CT hay độ khó đã được xác thực.</figcaption></figure>
+<label>Đặc tính để đối chiếu lỗi<select id="metric"></select></label>
+<p id="bin-explanation"></p><div id="conditional-table"></div>
+<p>Mốc phân nhóm lấy từ các tứ phân vị của train 5% trong cùng organ. Nhóm trống hiển thị “—”.
+Khi nhiều ảnh có cùng giá trị (đặc biệt là 0), các nhóm có thể trống hoặc khác nhau về số lượng.
+Tỷ lệ lỗi theo đặc tính cho thấy liên hệ mô tả, chưa chứng minh đặc tính đó gây lỗi.</p></section>
+<section id="augmentation"><h2>Augmentation đã xử lý được khác biệt này chưa?</h2>
+<p>Recipe hiện tại chỉ xoay ±5°, dịch tối đa 5%, nội suy bilinear và điền 0 ngoài ảnh;
+không có flip, crop hay thay đổi độ tương phản. Nó giúp với các biến thiên hình học nhẹ,
+nhưng không tạo thêm ca chụp mới, không khôi phục ngữ cảnh đã bị crop và không mô phỏng
+mọi khác biệt về hình dạng, mức xám hoặc điều kiện chụp. Nội suy cũng có thể làm giảm
+chênh lệch pixel lân cận; viền fill 0 làm tăng vùng tối. Có augmentation chưa có nghĩa
+phân bố train đã bao phủ test.</p>
+<p>Validation có ít ca CT hơn không tự làm loss thấp. Một tập ít ca có thể tình cờ dễ hơn
+hoặc chưa đại diện đủ các kiểu ảnh; nhiều lượt chọn mô hình trên cùng validation cũng
+có thể làm kết quả ở đó lạc quan hơn. Gallery và thống kê này chưa tách riêng được các cơ chế ấy.</p></section>
+<section><h2>Cách chia dữ liệu và giới hạn kết luận</h2>
+<p>Theo <a href="https://www.nature.com/articles/s41597-022-01721-8">MedMNIST v2</a>,
+OrganAMNIST dùng 115 CT scans cho train, 16 cho validation và 70 cho test. Train/validation
+lấy từ tập train của LiTS, còn test lấy từ tập test của nguồn. Đây không phải rải ngẫu nhiên
+các crop vào ba tập. <a href="https://github.com/MedMNIST/MedMNIST/blob/main/on_medmnist_plus.md#organacsmnist">MedMNIST+</a>
+giữ split/index tương ứng và resize crop nguồn thành 128×128.</p>
+<p>NPZ hiện tại không có scan ID, HU gốc, mask organ hay ảnh trước crop. Chưa thể kết luận
+một ảnh mờ vì resize, xác nhận vùng đen là phổi, hay coi các crop giống nhau là ca độc lập.
+Test gây nhiều lỗi hơn cho classifier đang xét không tự chứng minh nó có chất lượng ảnh kém hơn.</p>
+<p>Đây là phân tích khám phá từ test đã được xem trước đó. Không dùng những quan sát mới
+để thay cặp khó, trọng số hay hyperparameter của job 10% đã gửi. JSON, các hình PNG
+và bản Markdown được lưu cùng báo cáo.</p></section>
+</main><script type="application/json" id="split-data">__DATA__</script>
+<script>__SCRIPT__</script></body></html>

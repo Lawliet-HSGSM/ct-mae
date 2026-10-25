@@ -190,3 +190,19 @@ sai, F1 từng organ, confusion matrix, calibration và đặc trưng encoder.
 Báo cáo offline: `reports/adaptation-study/adaptation_report.html`.
 Artifacts đã tải và kiểm tra độc lập; W&B ghi đủ mười run. Kết quả một seed
 được trình bày cùng giới hạn, không chọn lại mô hình theo test.
+
+## Đối chiếu train, augmentation, validation và test
+
+[SPLIT_REVIEW.md](SPLIT_REVIEW.md) ghi phương pháp và kết quả kiểm tra khoảng cách
+validation–test. Trang `reports/split-review/split_review.html` có bốn cột cùng
+organ: train gốc, cùng ảnh sau affine, validation và test; có bộ lọc nguồn train,
+ảnh đúng/sai và kích thước xem. Nguồn prediction là hai classifier 5% ban đầu.
+
+Chênh lệch tỷ trọng organ chỉ đóng góp khoảng +0,1 điểm Accuracy; phần giảm gần
+9 điểm nằm ở recall trong từng organ trên test. Đặc tính pixel và các ví dụ giúp
+kiểm tra giả thuyết, chưa xác định được nguyên nhân là độ mờ, crop hay vùng tối.
+Trang mở offline, giữ pixel nguồn và có kiểm tra trình duyệt cùng đối chiếu PNG.
+
+[ADAPTATION_10PCT.md](ADAPTATION_10PCT.md) mô tả lượt học tiếp trên 3.456 nhãn,
+chứa toàn bộ 1.728 nhãn cũ, giữ ngân sách 1.350 updates mỗi nhánh. Các quan sát
+test trong trang đối chiếu không thay đổi thiết kế đã gửi của lượt này.
