@@ -174,3 +174,19 @@ Trang `reports/followup/pancreas_review.html` có 15 mẫu ngẫu nhiên seed 42
 15 mẫu gần tham chiếu theo MSE bố cục pixel và toàn bộ 1.622 ảnh test mang nhãn
 tụy. Hiển thị nhãn dataset cùng dự đoán của bốn model 5%; PNG giữ nguyên pixel.
 Hai lưới ảnh lớn nằm trong `reports/followup/figures/pancreas_*_10267.png`.
+
+## Học tiếp classifier: sampler, trọng số và SupCon
+
+[ADAPTATION.md](ADAPTATION.md) ghi protocol và kết quả của mười lượt học tiếp:
+năm biến thể cho full và năm cho partial, 50 epoch mỗi lượt, seed 42, cùng 1.728
+nhãn gốc. So sánh CE học tiếp, cách ghép batch, trọng số CE theo organ và SupCon;
+giữ checkpoint nguồn nếu validation không được cải thiện.
+
+Validation chọn full/CE ở epoch 13: Accuracy 88,75%→89,09%, macro-F1 88,04%→88,68%.
+Partial giữ nguồn 89,17% Accuracy; trong lượt này trọng số/SupCon chưa tạo ra
+phương án tốt hơn theo validation. Báo cáo đối chiếu cả ảnh được sửa và ảnh mới
+sai, F1 từng organ, confusion matrix, calibration và đặc trưng encoder.
+
+Báo cáo offline: `reports/adaptation-study/adaptation_report.html`.
+Artifacts đã tải và kiểm tra độc lập; W&B ghi đủ mười run. Kết quả một seed
+được trình bày cùng giới hạn, không chọn lại mô hình theo test.

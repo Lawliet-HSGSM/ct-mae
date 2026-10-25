@@ -1,10 +1,11 @@
 import json
 
 import numpy as np
+import pytest
 import torch
 
 from ct_mae.adaptation_data import TwinViewDataset
-from ct_mae.adaptation_evaluate import calibration
+from ct_mae.adaptation_evaluate import calibration, freeze_selection
 from ct_mae.adaptation_study import build_model, run_variant
 from ct_mae.config import load_config, write_json
 from ct_mae.data import OrganDataset
@@ -75,3 +76,22 @@ def test_full_adaptation_resume_preserves_next_update_including_projector(tmp_pa
 def test_calibration_handles_confidence_one_and_empty_bins():
     result = calibration([0, 1], [[1, 0], [0, 1]])
     assert result == {'nll': 0., 'ece_15': 0.}
+
+
+def test_selection_preserves_epoch_zero_and_earliest_variant_ties(tmp_path):
+    protocol = {'initial_validation': {s: {'macro_f1': score}
+                                      for s, score in [('full', .9), ('partial', .95)]}}
+    scores = dict(zip('ABCDE', [.91, .91, .9, .909, .88], strict=True))
+    for scope in ('full', 'partial'):
+        for variant, score in scores.items():
+            write_json(tmp_path / scope / variant / 'run.json', {
+                'status': 'completed', 'completed_epochs': 50, 'best_score': score, 'best_epoch': 7,
+            })
+    selection = freeze_selection(tmp_path, protocol)
+    assert selection == {'full': {'variant': 'A', 'epoch': 7, 'val_macro_f1': .91},
+                         'partial': {'variant': 'source', 'epoch': 0, 'val_macro_f1': .95}}
+    write_json(tmp_path / 'full/B/run.json', {
+        'status': 'completed', 'completed_epochs': 50, 'best_score': .92, 'best_epoch': 8,
+    })
+    with pytest.raises(ValueError, match='after it was frozen'):
+        freeze_selection(tmp_path, protocol)
