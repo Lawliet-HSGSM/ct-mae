@@ -29,7 +29,7 @@ def positive_count_bound(labels):
     return float(np.log(2 * counts[inverse] - 1).mean())
 
 
-def collect_data(artifacts, archive):
+def collect_data(artifacts, archive, previous=None):
     protocol = json.loads((artifacts / 'protocol.json').read_text('utf-8'))
     selection = json.loads((artifacts / 'selection_frozen.json').read_text('utf-8'))
     with np.load(archive, allow_pickle=False) as saved:
@@ -66,7 +66,8 @@ def collect_data(artifacts, archive):
                            peak_vram=max(h['resource']['peak_vram_bytes'] for h in run['history']))
                 if variant in ('D', 'E'):
                     with np.load(root / 'sampling_trace.npz', allow_pickle=False) as trace:
-                        batches = trace['epoch_50'].reshape(-1, protocol['recipe']['batch_size'])
+                        final = f'epoch_{protocol["recipe"]["epochs"]}'
+                        batches = trace[final].reshape(-1, protocol['recipe']['batch_size'])
                     row['supcon_lower_bound'] = float(np.mean([
                         positive_count_bound(train_labels[batch]) for batch in batches]))
             else:
@@ -80,6 +81,12 @@ def collect_data(artifacts, archive):
                 labels, predictions[scope]['source']['prediction'],
                 predictions[scope][variant]['prediction'],
             )
+    if previous is not None:
+        old = json.loads(previous.read_text('utf-8'))
+        data['previous'] = {'selection': old['selection'], 'recipe': old['protocol']['recipe'],
+                            'results': {s: {v: {k: row[k] for k in (
+                                'accuracy', 'macro_f1', 'val_macro_f1', 'epoch')}
+                                for v, row in rows.items()} for s, rows in old['results'].items()}}
     return data, images, labels, predictions
 
 
@@ -224,6 +231,9 @@ def table(headers, rows):
 
 def write_report(data, output):
     body, markdown = [], ['# CT-MAE — Học tiếp checkpoint phân loại\n']
+    epochs = data['protocol']['recipe']['epochs']
+    count = len(data['protocol']['actual_train_indices'])
+    percentage = round(count / 34561 * 100)
     notes = output / 'observations.json'
     observations = json.loads(notes.read_text('utf-8')) if notes.exists() else {}
     if observations and observations['selection'] != data['selection']:
@@ -250,9 +260,10 @@ def write_report(data, output):
                     '</figure>')
         markdown.append(f'![{caption}](figures/{name}.png)\n')
 
-    section('Kết quả sau 50 epoch học tiếp')
+    section(f'Kết quả sau {epochs} epoch học tiếp')
     paragraph('Hai checkpoint nguồn dùng cùng 1.728 nhãn train. Full nguồn ở epoch 70, partial '
-              'nguồn ở epoch 25. Mỗi nguồn có năm lượt học tiếp, seed 42; không train lại MAE.')
+              f'nguồn ở epoch 25. Lượt này dùng {count:,} nhãn train (khoảng {percentage}%). '
+              'Mỗi nguồn có năm lượt học tiếp, seed 42; không train lại MAE.')
     paragraph('A: CE học tiếp; B: ghép batch theo cặp dễ nhầm; C: B + trọng số CE theo organ; '
               'D: B + SupCon; E: kết hợp cả ba. '
               'Các ảnh validation/test giữ nguyên split chính thức.')
@@ -271,15 +282,38 @@ def write_report(data, output):
                   'Đây là kết quả một seed, không phải ước lượng độ ổn định qua nhiều lượt.')
         kept = [v for v in 'ABCDE' if data['results'][scope][v]['epoch'] == 0]
         if kept:
-            paragraph(f'{scope.title()} · {", ".join(kept)} đã train đủ 50 epoch nhưng chọn '
+            paragraph(f'{scope.title()} · {", ".join(kept)} đã train đủ {epochs} epoch nhưng chọn '
                       'epoch 0: không epoch học tiếp nào vượt F1 validation của nguồn. '
                       'Test giống nguồn là do dùng lại classifier nguồn, không phải '
-                      'trọng số ở epoch 50 không thay đổi.')
+                      f'trọng số ở epoch {epochs} không thay đổi.')
     body.append('</section>')
     if observations.get('quantitative'):
         section('Những điểm rút ra từ lượt chạy này')
         for note in observations['quantitative']:
             paragraph(note)
+        body.append('</section>')
+    if 'previous' in data:
+        section('Thêm nhãn so với lượt 5% trước')
+        paragraph('Tập 10% giữ 1.728 ảnh cũ và thêm 1.728 ảnh mới. Hai checkpoint nguồn vẫn '
+                  'là classifier đã học 5%; không dùng classifier đã học 10% làm điểm bắt đầu. '
+                  '25 epoch × 54 updates = 1.350 updates, bằng lượt 5% chạy 50 × 27. '
+                  'Warmup LR và lambda đều 135 updates. Số ảnh gốc được xử lý như nhau, '
+                  'nhưng mỗi ảnh được lặp lại ít hơn khi tăng dữ liệu.')
+        rows = []
+        for scope in ('full', 'partial'):
+            for variant in 'ABCDE':
+                before = data['previous']['results'][scope][variant]
+                after = data['results'][scope][variant]
+                rows.append([scope, variant, f'{before["accuracy"]:.2%}',
+                             f'{after["accuracy"]:.2%}', f'{before["macro_f1"]:.2%}',
+                             f'{after["macro_f1"]:.2%}',
+                             f'{100*(after["macro_f1"]-before["macro_f1"]):+.2f}'])
+        add_table(['Nguồn', 'Nhánh', 'Acc 5%', 'Acc 10%', 'F1 5%', 'F1 10%', 'Δ F1 (đpt)'], rows)
+        paragraph('Primary comparison là các nhánh A–E trong cùng lượt 10%. So với lượt 5%, '
+                  'validation được đánh giá 25 lần thay vì 50 lần, nên tần suất chọn checkpoint '
+                  'khác nhau. Bảng đối chiếu mô tả kết quả của hai quy trình, chưa tách hoàn '
+                  'toàn mọi ảnh hưởng của lượng nhãn. Đây cũng khác lượt label-efficiency '
+                  '100 epoch bắt đầu trực tiếp từ encoder MAE ở giai đoạn trước.')
         body.append('</section>')
     section('Thiết kế đối chứng và cách đọc')
     paragraph('A là CE học tiếp với shuffle thông thường. B chỉ đổi cách ghép batch. C dùng '
@@ -310,7 +344,8 @@ def write_report(data, output):
               'Trọng số trung bình bằng 1; tỷ lệ lớn nhất/nhỏ nhất tối đa 2. '
               'Nếu mọi F1=1 thì dùng 1.')
     paragraph('SupCon dùng projector 384→384→128, ReLU, chuẩn hóa L2, temperature 0.1; '
-              'lambda tăng 0→0.05 trong năm epoch. Positive theo nhãn train. Pool so sánh '
+              f'lambda tăng 0→0.05 trong {data["protocol"]["lambda_warmup_epochs"]} epoch. '
+              'Positive theo nhãn train. Pool so sánh '
               'chỉ trong micro-batch, không gộp qua tích lũy gradient. Inference bỏ projector.')
     paragraph('Mục tiêu học tiếp là weighted CE + lambda × SupCon (CE trọng số 1 ở A/B/D). '
               'SupCon lấy trung bình −log xác suất tương đồng của từng positive cùng nhãn '
@@ -372,7 +407,8 @@ def write_report(data, output):
     add_table(['Nguồn', 'Nhánh', 'Updates thực', 'Phút train loop', 'Peak VRAM GiB',
                'Tham số học'], rows)
     paragraph('Thời gian trên là train loop, không gồm validation/checkpoint/setup. '
-              'Recipe: AdamW, LR encoder/head 3e-5, projector ×10; warmup 5 epoch rồi cosine '
+              'Recipe: AdamW, LR encoder/head 3e-5, projector ×10; '
+              f'warmup {data["protocol"]["recipe"]["warmup_epochs"]} epoch rồi cosine '
               'về 1e-6; betas (0.9,0.999), WD 0.05, không decay bias/LayerNorm; AMP FP16.')
     paragraph('Batch thực và tích lũy: ' + str(data['protocol']['recipe']['batch_size']) + ' × '
               + str(data['protocol']['recipe']['accumulation']) + ' ảnh gốc; hai view mỗi ảnh. '
@@ -382,16 +418,16 @@ def write_report(data, output):
              f'{r["supcon_lower_bound"]:.4f}' if 'supcon_lower_bound' in r else '—',
              r['epoch']] for scope, variants in data['results'].items()
             for v, r in variants.items() if v != 'source']
-    add_table(['Nguồn', 'Nhánh', 'Val F1 epoch 50', 'SupCon train epoch 50',
+    add_table(['Nguồn', 'Nhánh', f'Val F1 epoch {epochs}', f'SupCon train epoch {epochs}',
                'Cận dưới theo positive', 'Epoch chọn'], rows)
     paragraph('SupCon bằng 0 ở A/B/C vì không dùng mục tiêu này. Loss SupCon của D/E đo ở '
               'projector; không so trực tiếp loss train với validation CE sạch. '
-              'Bảng epoch 50 cho thấy trạng thái cuối dù checkpoint được giữ từ epoch sớm hơn.')
+              f'Bảng epoch {epochs} cho thấy trạng thái cuối dù checkpoint giữ từ epoch sớm hơn.')
     paragraph('Nếu có n ảnh gốc cùng lớp trong micro-batch (tính cả ảnh đang xét), '
               'mỗi view có P=2n−1 '
               'positive. Loss của anchor không thể thấp hơn log(P), do phải chia xác suất '
               'cho các positive. Cận trong bảng là trung bình log(P) theo các batch thực ở '
-              'epoch 50; không giả định mọi mô hình đều đạt được cận này. Vì vậy SupCon '
+              f'epoch {epochs}; không giả định mọi mô hình đều đạt được cận này. Vì vậy SupCon '
               'không nhất thiết tiến về 0 dù đã tối ưu tốt mục tiêu train.')
     neighbor_rows = [[scope, NAMES[v], f'{r["neighbors"]["agreement"]:.2%}']
                      for scope, rows in data['results'].items() for v, r in rows.items()
@@ -460,7 +496,7 @@ def write_report(data, output):
           data['protocol']['source_manifest']['checkpoints'].items()],
     ])
     paragraph('Mọi bảng được tính lại từ prediction đã lưu và kiểm tra alignment với nhãn '
-              'test chính thức. Collection audit xác minh source/subset hashes, 50 epoch, '
+              f'test chính thức. Collection audit xác minh source/subset hashes, {epochs} epoch, '
               'sampling trace, lựa chọn epoch 0 hoặc earliest best '
               'và tensors đóng băng của partial.')
     for scope, rows in data['results'].items():
@@ -494,7 +530,7 @@ def write_report(data, output):
     page = ('<!doctype html><html lang="vi"><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
             '<title>CT-MAE · Học tiếp checkpoint</title><style>' + style + '</style><body><main>'
-            '<header><p class="eyebrow">CT-MAE · ADAPTATION STUDY · 5% NHÃN</p>'
+            f'<header><p class="eyebrow">CT-MAE · ADAPTATION STUDY · {percentage}% NHÃN</p>'
             '<h1>Học tiếp checkpoint phân loại</h1><p class="lead">Sampler, trọng số organ '
             'và supervised contrastive loss · Full & Partial · seed 42.</p></header>'
             + ''.join(body) + '</main></body></html>')
@@ -508,12 +544,14 @@ def main():
     parser.add_argument('--archive', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--reuse', action='store_true')
+    parser.add_argument('--previous', type=Path)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     if args.reuse:
         data = json.loads((args.output / 'adaptation_comparison.json').read_text('utf-8'))
     else:
-        data, images, labels, predictions = collect_data(args.artifacts, args.archive)
+        data, images, labels, predictions = collect_data(args.artifacts, args.archive,
+                                                        args.previous)
         plots(data, args.output)
         data['galleries'] = galleries(data, images, labels, predictions)
         write_json(args.output / 'adaptation_comparison.json', data)

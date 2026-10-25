@@ -16,7 +16,7 @@ Repeat A–E for full and partial: shuffled CE; paired CE; paired weighted CE;
 paired CE+SupCon; paired weighted CE+SupCon. Preserve both old and added examples
 in the training pool. All branches share indices and two affine views per image.
 
-Match the previous planned optimizer budget, batch32/accumulation2:
+Match the previous planned optimizer budget, batch 32/accumulation 2:
 
 | Setting | 5% adaptation | New 10% adaptation |
 | --- | ---: | ---: |
@@ -28,14 +28,14 @@ Match the previous planned optimizer budget, batch32/accumulation2:
 | SupCon lambda warmup epochs | 5 | 2.5 |
 | Warmup updates | 135 | 135 |
 
-Actual skipped AMP updates, if any, are reported. LR remains3e-5, projector×10,
-lambda maximum0.05, temperature0.1. Other optimizer/architecture settings are
-unchanged. Source epoch0 remains a candidate; choose earliest best validation
+Actual skipped AMP updates, if any, are reported. LR remains 3e-5, projector×10,
+lambda maximum 0.05, temperature 0.1. Other optimizer/architecture settings are
+unchanged. Source epoch 0 remains a candidate; choose earliest best validation
 macro-F1 and choose the variant by validation, before any new test evaluations.
 
 Three confusion pairs remain liver/right-lung, left-kidney/spleen,
 left-kidney/right-kidney, using source validation only. The two source validation
-matrices jointly contain85,27,28 cross-confusions for these pairs respectively.
+matrices jointly contain 85, 27, 28 cross-confusions for these pairs respectively.
 Class-weight deficits also use source validation F1; normalization uses the new
 training class frequencies. Validation does not supply gradient updates.
 
@@ -47,15 +47,15 @@ results remain exploratory and are not a fresh confirmatory evaluation.
 
 Primary comparisons are A–E within the new 10% setting. Comparisons against old
 5% runs match planned updates and LR/lambda schedules, but validation/checkpoint
-evaluation happens25 times rather than50, and each image receives25 rather than50
+evaluation happens 25 times rather than 50, and each image receives 25 rather than 50
 passes. These limits must be explicit; do not attribute every difference solely
-to label count or describe the existing100-epoch label study as the same recipe.
+to label count or describe the existing 100-epoch label study as the same recipe.
 
 Kaggle root: `ct-mae-adaptation10pct`. W&B group:
 `ct-mae-adaptation10pct-seed42`. Existing secret authorization is reused.
 Run all ten smoke variants and verify finite W&B metrics before production;
 abort on checksum, split, smoke or logging failures. Original artifacts are read
-only, new outputs live in `reports/adaptation-10pct/`. Estimated GPU time2–3hours.
+only, new outputs live in `reports/adaptation-10pct/`. Estimated GPU time 2–3 hours.
 
 Artifact audit checks label/source hashes, every epoch's index order and counts,
 frozen partial tensors, actual update counts, earliest-best selection and test
