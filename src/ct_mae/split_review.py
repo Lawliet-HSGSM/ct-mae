@@ -91,6 +91,8 @@ def build_review(archive, subset_path, artifacts, output):
         labels = {s: saved[f'{s}_labels'].reshape(-1) for s in images}
     added = np.setdiff1d(nested_indices(labels['train'], selected, 3456, 42), selected)
     protocol = json.loads((artifacts / 'protocol.json').read_text('utf-8'))
+    if manifest['indices_sha256'] != protocol['source_manifest']['subset_sha256']:
+        raise ValueError('Train gallery subset differs from the classifier source labels')
     predictions, gaps = {}, {}
     for model in ('full', 'partial'):
         checkpoint = json.loads((artifacts / model / 'source/test.json').read_text('utf-8'))
