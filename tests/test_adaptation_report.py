@@ -33,6 +33,12 @@ def test_gallery_pairs_are_correct_and_source_pixels_are_lossless():
         assert case['index'] == index
         decoded = np.asarray(Image.open(BytesIO(base64.b64decode(case['image'].split(',')[1]))))
         np.testing.assert_array_equal(decoded, images[index])
+    values['full']['A'] = updated
+    values['full']['previous_A'] = predictions([0, 1, 2, 3])
+    comparison = galleries(data, images, labels, values)['full']['CE · 10% so với 5%']
+    assert comparison['Được sửa'] == []
+    assert comparison['Mới sai'][0]['index'] == 2
+    assert set(comparison['Mới sai'][0]['models']) == {'A · 5%', 'A · 10%'}
 
 
 def test_report_table_escapes_untrusted_text():

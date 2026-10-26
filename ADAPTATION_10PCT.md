@@ -61,3 +61,71 @@ Artifact audit checks label/source hashes, every epoch's index order and counts,
 frozen partial tensors, actual update counts, earliest-best selection and test
 predictions/calibration. Produce a separate offline HTML/Markdown report with
 per-class/error changes and original-pixel examples after completion.
+
+## Measured result
+
+Kaggle notebook version 12 completed all ten production runs and all ten smoke
+variants. Every production run made 1,350 successful updates without AMP skips.
+Source bundle commit: `a25ce8cf919f8e5667d49f47dad128f2290f49e8`;
+bundle SHA-256: `458a5f5807d18d050626fc6544e8dedc0213ba41e6f0f3f64f18c71b5c9a594e`.
+The logged interval to completion was 8,530.9 seconds, about 2h22m, on one Tesla T4.
+
+| Source | Variant | Selected epoch | Val macro-F1 | Test Accuracy | Test macro-F1 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Full | Original 5% source | 0 | 97.7741% | 88.7501% | 88.0351% |
+| Full | A: CE | 6 | 98.0878% | 90.8707% | 90.2599% |
+| Full | B: sampler | 7 | 97.9357% | 91.3657% | 90.9072% |
+| Full | C: weighted CE | 7 | 97.9503% | 91.5457% | 91.0839% |
+| Full | D: SupCon | 21 | 97.9485% | 91.6751% | 91.1449% |
+| Full | E: combined | 7 | 97.9541% | 91.5570% | 91.0991% |
+| Partial | Original source and A–E | 0 | 98.1075% | 89.1720% | 88.5456% |
+
+Validation selects full/A within the full-source candidates and retains the
+partial source within partial-source candidates. D's higher test result does
+not override this decision. All variants inherit MAE and the original 5%
+classifier; A is the CE continuation control for this stage.
+
+Compared against full/A at 5% with the same adaptation update budget, full/A 10%
+improves Accuracy 89.0876%→90.8707% and macro-F1 88.6839%→90.2599%.
+It recovers 601 previous errors and introduces 284 new ones, a net 317 additional
+correct predictions. The report includes paired galleries against both the
+original source and the corresponding 5% CE adaptation control.
+
+Full/A improves per-organ F1 for all 11 organs relative to the original source,
+but not all confusion directions: right-kidney→left-kidney increases 161→232.
+Against B, D improves measured test Accuracy by 0.31 percentage points and
+macro-F1 by 0.24 points, while validation macro-F1 differs by only 0.013 points.
+The combined E adds only two correct test predictions over C. Treat small
+differences as exploratory, not established improvements from one seed.
+
+The retained partial source does not mean the additional runs did no learning.
+Final clean training Accuracy is 99.54–99.59% for partial and 100% for full;
+partial's validation scores remain below source throughout. The study fixes
+optimization budget, rather than establishing every setting's best achievable
+result after unlimited training.
+
+Model rankings differ between validation and test. Even across the two source
+families, original partial has slightly higher validation macro-F1 than full/A,
+while full/A has higher test metrics. Do not retroactively choose a global
+winner using test. Validation representativeness and the previously inspected
+test are material limits, discussed alongside the split-review diagnostic.
+
+## Artifacts and reproduction
+
+Report: `reports/adaptation-10pct/adaptation_report.html`, with Markdown/JSON,
+standalone figures, original-pixel paired examples and browser verification.
+`artifacts/collection_verification.json` independently verifies hashes, data,
+sampling traces, frozen weights, selection and prediction/calibration metrics.
+W&B completion proofs cover all ten production runs.
+
+```powershell
+$env:PYTHONPATH = Join-Path (Get-Location) 'src'
+uv run --extra train python -m ct_mae.adaptation_collect --verify-only --sources .worktrees/adaptation10/work/adaptation-sources --archive data/organamnist_128.npz --output reports/adaptation-10pct/artifacts
+uv run --extra train python -m ct_mae.adaptation_report --artifacts reports/adaptation-10pct/artifacts --archive data/organamnist_128.npz --previous reports/adaptation-study/adaptation_comparison.json --output reports/adaptation-10pct
+uv run --extra train python scripts/check_adaptation_report.py reports/adaptation-10pct/adaptation_report.html --output reports/adaptation-10pct/browser
+```
+
+For a fresh download, use the MCP manifest, `--manifest` instead of
+`--verify-only`, and `--root-name ct-mae-adaptation10pct`. Do not commit expiring
+signed URLs. Browser checks verify all twelve result rows/matrices, native
+128px examples, responsive layout and absence of external page dependencies.

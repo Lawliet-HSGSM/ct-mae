@@ -83,10 +83,24 @@ def collect_data(artifacts, archive, previous=None):
             )
     if previous is not None:
         old = json.loads(previous.read_text('utf-8'))
+        if old['protocol']['source_manifest'] != protocol['source_manifest']:
+            raise ValueError('The previous label-budget run used different source classifiers')
         data['previous'] = {'selection': old['selection'], 'recipe': old['protocol']['recipe'],
                             'results': {s: {v: {k: row[k] for k in (
                                 'accuracy', 'macro_f1', 'val_macro_f1', 'epoch')}
                                 for v, row in rows.items()} for s, rows in old['results'].items()}}
+        data['previous']['paired'] = {}
+        for scope in ('full', 'partial'):
+            pairs = {}
+            for variant in 'ABCDE':
+                path = previous.parent / 'artifacts' / scope / variant / 'test_predictions.npz'
+                if path.exists():
+                    before = read_predictions(path, labels)
+                    pairs[variant] = paired_outcomes(labels, before['prediction'],
+                                                     predictions[scope][variant]['prediction'])
+                    if variant == 'A':
+                        predictions[scope]['previous_A'] = before
+            data['previous']['paired'][scope] = pairs
     return data, images, labels, predictions
 
 
@@ -165,6 +179,32 @@ def plots(data, output):
             figure_save(fig, output, f'confusion_{scope}_{variant}')
 
 
+def paired_gallery(images, labels, base, current, before_name, after_name):
+    old_ok, new_ok = base['prediction'] == labels, current['prediction'] == labels
+    groups = {
+        'Được sửa': select_errors(labels, base['probability'], 6, new_ok),
+        'Mới sai': select_errors(labels, current['probability'], 6, old_ok),
+        'Cả hai sai': select_errors(labels, current['probability'], 6, ~old_ok),
+    }
+    controls = np.flatnonzero(old_ok & new_ok)
+    groups['Cả hai đúng · ngẫu nhiên'] = np.random.default_rng(42).choice(
+        controls, min(6, len(controls)), replace=False,
+    )
+    result = {}
+    for group, indices in groups.items():
+        cases = []
+        for index in indices:
+            models = {}
+            for name, values in ((before_name, base), (after_name, current)):
+                predicted = int(values['prediction'][index])
+                confidence = float(values['probability'][index, predicted])
+                models[name] = {'prediction': predicted, 'confidence': confidence}
+            cases.append({'index': int(index), 'label': int(labels[index]),
+                          'image': png_data_url(images[index]), 'models': models})
+        result[group] = cases
+    return result
+
+
 def galleries(data, images, labels, predictions):
     result = {}
     for scope in ('full', 'partial'):
@@ -173,29 +213,14 @@ def galleries(data, images, labels, predictions):
         for variant in dict.fromkeys(('E', data['selection'][scope]['variant'])):
             if variant == 'source':
                 continue
-            current = predictions[scope][variant]
-            old_ok, new_ok = base['prediction'] == labels, current['prediction'] == labels
-            groups = {
-                'Được sửa': select_errors(labels, base['probability'], 6, new_ok),
-                'Mới sai': select_errors(labels, current['probability'], 6, old_ok),
-                'Cả hai sai': select_errors(labels, current['probability'], 6, ~old_ok),
-            }
-            controls = np.flatnonzero(old_ok & new_ok)
-            groups['Cả hai đúng · ngẫu nhiên'] = np.random.default_rng(42).choice(
-                controls, min(6, len(controls)), replace=False,
+            result[scope][variant] = paired_gallery(
+                images, labels, base, predictions[scope][variant], 'Nguồn', variant,
             )
-            result[scope][variant] = {}
-            for group, indices in groups.items():
-                cases = []
-                for index in indices:
-                    models = {}
-                    for name, values in (('Nguồn', base), (variant, current)):
-                        predicted = int(values['prediction'][index])
-                        confidence = float(values['probability'][index, predicted])
-                        models[name] = {'prediction': predicted, 'confidence': confidence}
-                    cases.append({'index': int(index), 'label': int(labels[index]),
-                                  'image': png_data_url(images[index]), 'models': models})
-                result[scope][variant][group] = cases
+        if scope == 'full' and 'previous_A' in predictions[scope]:
+            result[scope]['CE · 10% so với 5%'] = paired_gallery(
+                images, labels, predictions[scope]['previous_A'], predictions[scope]['A'],
+                'A · 5%', 'A · 10%',
+            )
     return result
 
 
@@ -234,6 +259,7 @@ def write_report(data, output):
     epochs = data['protocol']['recipe']['epochs']
     count = len(data['protocol']['actual_train_indices'])
     percentage = round(count / 34561 * 100)
+    count_text = f'{count:,}'.replace(',', '.')
     notes = output / 'observations.json'
     observations = json.loads(notes.read_text('utf-8')) if notes.exists() else {}
     if observations and observations['selection'] != data['selection']:
@@ -262,11 +288,14 @@ def write_report(data, output):
 
     section(f'Kết quả sau {epochs} epoch học tiếp')
     paragraph('Hai checkpoint nguồn dùng cùng 1.728 nhãn train. Full nguồn ở epoch 70, partial '
-              f'nguồn ở epoch 25. Lượt này dùng {count:,} nhãn train (khoảng {percentage}%). '
+              f'nguồn ở epoch 25. Lượt này dùng {count_text} nhãn train (khoảng {percentage}%). '
               'Mỗi nguồn có năm lượt học tiếp, seed 42; không train lại MAE.')
     paragraph('A: CE học tiếp; B: ghép batch theo cặp dễ nhầm; C: B + trọng số CE theo organ; '
               'D: B + SupCon; E: kết hợp cả ba. '
               'Các ảnh validation/test giữ nguyên split chính thức.')
+    paragraph('Tỷ lệ nhãn chỉ tính trên 34.561 ảnh train. Vẫn dùng đủ 6.491 nhãn validation '
+              'để thiết kế/chọn mô hình và 17.778 ảnh test có nhãn để đánh giá. '
+              'Loss để backpropagation chỉ được tính trên các ảnh train đã chọn.')
     figure('comparison', 'Test Accuracy và macro-F1; checkpoint chọn bằng validation, gồm epoch 0. '
            'Trục Y thu hẹp để thấy chênh lệch.')
     headers = ['Nhánh', 'Val F1 macro', 'Test Acc', 'Test F1 macro', 'Δ F1 / nguồn (đpt)',
@@ -309,7 +338,13 @@ def write_report(data, output):
                              f'{after["macro_f1"]:.2%}',
                              f'{100*(after["macro_f1"]-before["macro_f1"]):+.2f}'])
         add_table(['Nguồn', 'Nhánh', 'Acc 5%', 'Acc 10%', 'F1 5%', 'F1 10%', 'Δ F1 (đpt)'], rows)
-        paragraph('Primary comparison là các nhánh A–E trong cùng lượt 10%. So với lượt 5%, '
+        for scope, pairs in data['previous'].get('paired', {}).items():
+            if pairs:
+                paragraph(f'{scope.title()} · đối chiếu từng ảnh: nhánh tương ứng ở 5% → 10%:')
+                add_table(['Nhánh', 'Sai 5%→đúng 10%', 'Đúng 5%→sai 10%', 'Sửa ròng'], [
+                    [v, p['recovered'], p['regressed'], p['recovered']-p['regressed']]
+                    for v, p in pairs.items()])
+        paragraph('So sánh chính là các nhánh A–E trong cùng lượt 10%. So với lượt 5%, '
                   'validation được đánh giá 25 lần thay vì 50 lần, nên tần suất chọn checkpoint '
                   'khác nhau. Bảng đối chiếu mô tả kết quả của hai quy trình, chưa tách hoàn '
                   'toàn mọi ảnh hưởng của lượng nhãn. Đây cũng khác lượt label-efficiency '
@@ -320,6 +355,8 @@ def write_report(data, output):
               'sampler B và trọng số theo organ. D dùng sampler B và CE+SupCon. E kết hợp cả hai. '
               'B−A kiểm tra sampler; C−B kiểm tra trọng số; D−B kiểm tra SupCon; '
               'E−C/E−D kiểm tra tác dụng kết hợp.')
+    paragraph('Tất cả A–E kế thừa encoder MAE và classifier đã học 5% nhãn. '
+              'A cung cấp đối chứng CE cho giai đoạn học tiếp này.')
     for scope in ('full', 'partial'):
         paragraph(f'{scope.title()} · so sánh từng thay đổi, '
                   'sau khi chọn epoch riêng bằng validation:')
@@ -407,7 +444,7 @@ def write_report(data, output):
     add_table(['Nguồn', 'Nhánh', 'Updates thực', 'Phút train loop', 'Peak VRAM GiB',
                'Tham số học'], rows)
     paragraph('Thời gian trên là train loop, không gồm validation/checkpoint/setup. '
-              'Recipe: AdamW, LR encoder/head 3e-5, projector ×10; '
+              'Thiết lập huấn luyện: AdamW, LR encoder/head 3e-5, projector ×10; '
               f'warmup {data["protocol"]["recipe"]["warmup_epochs"]} epoch rồi cosine '
               'về 1e-6; betas (0.9,0.999), WD 0.05, không decay bias/LayerNorm; AMP FP16.')
     paragraph('Batch thực và tích lũy: ' + str(data['protocol']['recipe']['batch_size']) + ' × '

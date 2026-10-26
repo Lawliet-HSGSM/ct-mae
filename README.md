@@ -206,3 +206,10 @@ Trang mở offline, giữ pixel nguồn và có kiểm tra trình duyệt cùng 
 [ADAPTATION_10PCT.md](ADAPTATION_10PCT.md) mô tả lượt học tiếp trên 3.456 nhãn,
 chứa toàn bộ 1.728 nhãn cũ, giữ ngân sách 1.350 updates mỗi nhánh. Các quan sát
 test trong trang đối chiếu không thay đổi thiết kế đã gửi của lượt này.
+
+Lượt 10% đã hoàn tất: trong nhánh full, validation chọn CE học tiếp ở epoch 6,
+đạt **90,87% Accuracy / 90,26% macro-F1**, so với **89,09% / 88,68%** ở lượt
+5% với cùng 1.350 updates. Partial giữ checkpoint nguồn. Báo cáo riêng nằm ở
+`reports/adaptation-10pct/adaptation_report.html`, gồm đối chiếu từng ảnh giữa
+hai mức nhãn. SupCon có tín hiệu test tốt hơn sampler đơn thuần trong lượt này,
+nhưng không thay thế lựa chọn theo validation và chưa được xác nhận qua nhiều seed.
