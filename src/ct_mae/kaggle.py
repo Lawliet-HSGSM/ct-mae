@@ -49,6 +49,8 @@ from ct_mae.config import config_digest, load_config
 from ct_mae.run import diagnostic_config
 from ct_mae.pipeline import environment_info
 config = load_config()
+if __SECRET_LABEL__ is not None:
+    config["wandb"]["secret_label"] = __SECRET_LABEL__
 SMOKE = __SMOKE__
 RESUME = __RESUME__
 if SMOKE: config = diagnostic_config(config)
@@ -128,12 +130,15 @@ def verify_runs(experiment: Path, api, entity: str, project: str, stages: list[s
 
 
 def build_script(destination: Path, *, stage: str = "all", smoke: bool = False,
-                 resume: bool = False) -> dict:
+                 resume: bool = False, secret_label: str | None = None) -> dict:
     root = Path(__file__).resolve().parents[2]
     buffer = io.BytesIO()
     paths = sorted(path for path in (root / "src" / "ct_mae").iterdir()
                    if path.suffix in (".py", ".json", ".html", ".css", ".js"))
     paths += sorted((root / "tests").glob("test_*.py"))
+    paths += [root / name for name in ("LICENSE", "THIRD_PARTY_NOTICES.md")
+              if (root / name).exists()]
+    paths += sorted((root / "licenses").glob("*.txt"))
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in paths:
             name = path.relative_to(root / "src") if path.is_relative_to(root / "src") else (
@@ -148,7 +153,8 @@ def build_script(destination: Path, *, stage: str = "all", smoke: bool = False,
                             capture_output=True, check=True).stdout.strip()
     script = TEMPLATE.replace("__PAYLOAD__", repr(base64.b64encode(payload).decode()))
     for name, value in (("__COMMIT__", commit), ("__DIGEST__", digest), ("__STAGE__", stage),
-                        ("__SMOKE__", smoke), ("__RESUME__", resume)):
+                        ("__SMOKE__", smoke), ("__RESUME__", resume),
+                        ("__SECRET_LABEL__", secret_label)):
         script = script.replace(name, repr(value))
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(script, "utf-8")
@@ -163,9 +169,10 @@ def main():
                         default="all")
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--secret-label", help="Kaggle Secret label, never the API key value")
     args = parser.parse_args()
     print(json.dumps(build_script(args.output, stage=args.stage, smoke=args.smoke,
-                                   resume=args.resume)))
+                                   resume=args.resume, secret_label=args.secret_label)))
 
 
 if __name__ == "__main__":

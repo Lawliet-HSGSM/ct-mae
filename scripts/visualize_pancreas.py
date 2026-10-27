@@ -126,7 +126,7 @@ def main():
     predictions = {}
     for stage in STAGES:
         base = root / ('reports/followup/artifacts' if stage == 'partial'
-                       else '.worktrees/dataset/reports/kaggle-v7')
+                       else 'reports/baseline')
         predictions[stage] = read_predictions(base / stage / 'test_predictions.npz', labels)
     pool = np.flatnonzero(labels == 9)
     pool = pool[pool != reference]

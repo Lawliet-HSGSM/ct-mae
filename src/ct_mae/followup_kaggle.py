@@ -40,7 +40,8 @@ from ct_mae.config import write_json
 from ct_mae.pipeline import environment_info, sha256_file
 from ct_mae.download import fetch_asset, official_asset
 from kaggle_secrets import UserSecretsClient
-os.environ["WANDB_API_KEY"] = UserSecretsClient().get_secret("WANDB_API_KEY_THANG")
+logging_config = json.loads((source/"baseline/resolved_config.json").read_text())["wandb"]
+os.environ["WANDB_API_KEY"] = UserSecretsClient().get_secret(logging_config["secret_label"])
 import wandb
 api = wandb.Api()
 print("W&B authenticated", api.default_entity, flush=True)
@@ -90,6 +91,10 @@ def build_script(destination: Path, baseline: Path, checkpoint_urls: dict[str, s
                 bundle.writestr(file.relative_to(root / 'src').as_posix(), file.read_bytes())
         for file in sorted((root / 'tests').glob('test_*.py')):
             bundle.writestr(file.relative_to(root).as_posix(), file.read_bytes())
+        for file in [root / 'LICENSE', root / 'THIRD_PARTY_NOTICES.md',
+                     *sorted((root / 'licenses').glob('*.txt'))]:
+            if file.exists():
+                bundle.writestr(file.relative_to(root).as_posix(), file.read_bytes())
         for filename in ('resolved_config.json', 'subset.json'):
             bundle.writestr(f'baseline/{filename}', (baseline / filename).read_bytes())
         for stage in checkpoint_urls:

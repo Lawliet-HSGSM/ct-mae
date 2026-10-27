@@ -1,3 +1,5 @@
+# MAE-derived portions: Copyright (c) Meta Platforms, Inc. and affiliates.
+# Modified for CT-MAE; see THIRD_PARTY_NOTICES.md and LICENSE (CC BY-NC 4.0).
 """A grayscale asymmetric MAE and its shared ViT classification encoder.
 
 Architecture/initialization: https://github.com/facebookresearch/mae/blob/main/models_mae.py

@@ -6,6 +6,9 @@ build-backend = "hatchling.build"
 name = "ct-mae"
 version = "0.1.0"
 description = "Label-efficient organ classification with asymmetric masked autoencoders"
+readme = "README.md"
+license = "CC-BY-NC-4.0"
+license-files = ["LICENSE", "licenses/*", "THIRD_PARTY_NOTICES.md"]
 requires-python = ">=3.12"
 dependencies = ["numpy>=2.0,<3", "pillow>=11,<13", "matplotlib>=3.9,<4"]
 

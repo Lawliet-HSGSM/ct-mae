@@ -1,4 +1,8 @@
-"""Supervised contrastive adaptation; classification does not use the projector."""
+"""Supervised contrastive adaptation; classification does not use the projector.
+
+Objective: Khosla et al. (2020); reference SupContrast loss by Yonglong Tian.
+See THIRD_PARTY_NOTICES.md and licenses/SupContrast-BSD-2-Clause.txt.
+"""
 
 import torch
 from torch import nn
