@@ -45,7 +45,7 @@ and the [audited result snapshot](docs/results/results.json).
 ## Method
 
 ```mermaid
-flowchart LR
+flowchart TB
     A[All 34,561 training crops<br/>Ignore organ labels] --> B[8 × 8 patches<br/>Mask 75%]
     B --> C[ViT encoder<br/>64 visible patches + CLS]
     C --> D[Small Transformer decoder<br/>Predict masked pixels with MSE]
