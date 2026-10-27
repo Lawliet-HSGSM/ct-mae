@@ -65,12 +65,12 @@ similar-looking crops as independent patients. The resolution panel displays
 
 ## Reproduce locally
 
-From `.worktrees/crop` using the shared Windows environment:
+From the repository root:
 
 ```powershell
 $env:PYTHONPATH = (Join-Path (Get-Location) 'src')
-& '..\dataset\.venv\Scripts\python.exe' -m ct_mae.crop_review --data-dir ../../data --baseline ../dataset/reports/kaggle-v7 --followup ../../reports/followup/artifacts --analysis ../../reports/followup/analysis.json --output ../../reports/followup
-& '..\dataset\.venv\Scripts\python.exe' scripts/check_crop_review.py ../../reports/followup/crop_review.html --output ../../reports/followup/crop-browser-qa
+uv run --extra train python -m ct_mae.crop_review --data-dir data --baseline reports/baseline --followup reports/followup/artifacts --analysis reports/followup/analysis.json --output reports/followup
+uv run --extra train python scripts/check_crop_review.py reports/followup/crop_review.html --output reports/followup/crop-browser-qa
 ```
 
 The new offline page is `reports/followup/crop_review.html` under the main

@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "Please cite the original MAE, SupCon and MedMNIST papers when using this project. BibTeX entries are in docs/references.bib."
+type: software
+repository-code: "https://github.com/Lawliet-HSGSM/ct-mae"
+title: "CT-MAE: Label-Efficient Organ Classification on Abdominal CT Crops"
+authors:
+  - name: "CT-MAE contributors"
+version: 0.1.0
+date-released: '2026-10-27'
+license: CC-BY-NC-4.0
+keywords:
+  - masked-autoencoder
+  - self-supervised-learning
+  - medical-imaging
+  - organamnist
+  - vision-transformer

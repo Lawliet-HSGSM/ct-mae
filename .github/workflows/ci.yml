@@ -1,0 +1,36 @@
+name: CPU checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      MPLBACKEND: Agg
+      PYTHONUTF8: '1'
+      WANDB_MODE: disabled
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install uv
+        run: python -m pip install uv==0.11.7
+      - name: Install locked CPU environment
+        run: uv sync --locked --extra train --group dev
+      - name: Lint
+        run: uv run --extra train ruff check .
+      - name: Test without data downloads or credentials
+        run: uv run --extra train pytest -q
+      - name: Check public results and documentation links
+        run: uv run python scripts/check_publication.py
+      - name: Build distributions
+        run: uv build

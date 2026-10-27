@@ -120,7 +120,7 @@ W&B completion proofs cover all ten production runs.
 
 ```powershell
 $env:PYTHONPATH = Join-Path (Get-Location) 'src'
-uv run --extra train python -m ct_mae.adaptation_collect --verify-only --sources .worktrees/adaptation10/work/adaptation-sources --archive data/organamnist_128.npz --output reports/adaptation-10pct/artifacts
+uv run --extra train python -m ct_mae.adaptation_collect --verify-only --sources work/adaptation-sources --archive data/organamnist_128.npz --output reports/adaptation-10pct/artifacts
 uv run --extra train python -m ct_mae.adaptation_report --artifacts reports/adaptation-10pct/artifacts --archive data/organamnist_128.npz --previous reports/adaptation-study/adaptation_comparison.json --output reports/adaptation-10pct
 uv run --extra train python scripts/check_adaptation_report.py reports/adaptation-10pct/adaptation_report.html --output reports/adaptation-10pct/browser
 ```

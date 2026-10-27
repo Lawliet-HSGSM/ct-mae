@@ -1,0 +1,39 @@
+{
+  "reconstruction.png": {
+    "inputs": [
+      {
+        "name": "reconstruction.png",
+        "sha256": "97be979b97c05d66c8e80a1b4dfb3ce2138d6f140b5944fbffc56269d3719554"
+      }
+    ],
+    "output_sha256": "97be979b97c05d66c8e80a1b4dfb3ce2138d6f140b5944fbffc56269d3719554",
+    "image_source": "OrganAMNIST128 / MedMNIST, CC BY 4.0; model outputs and annotations from measured seed-42 runs",
+    "operation": "Original export"
+  },
+  "embedding_pca.png": {
+    "inputs": [
+      {
+        "name": "embedding_pca.png",
+        "sha256": "9501dacfc404c5cdcdae096f0d727a22ec0c58c2b278194249dcc80718edc18f"
+      }
+    ],
+    "output_sha256": "9501dacfc404c5cdcdae096f0d727a22ec0c58c2b278194249dcc80718edc18f",
+    "image_source": "OrganAMNIST128 / MedMNIST, CC BY 4.0; model outputs and annotations from measured seed-42 runs",
+    "operation": "Original export"
+  },
+  "paired_examples.png": {
+    "inputs": [
+      {
+        "name": "cases_partial_recovers.png",
+        "sha256": "65fea999be2971c56548fd71b314ace126e5ea89479bcc49212a97920a23fd79"
+      },
+      {
+        "name": "cases_partial_regresses.png",
+        "sha256": "20e5aefd156e05c026080337b1da48c034fad593395340ec723f1a2b9cf21f3d"
+      }
+    ],
+    "output_sha256": "0bbdada07cfbd9b80ab624912536339f435db86d97cc574974152a8104f56bd6",
+    "image_source": "OrganAMNIST128 / MedMNIST, CC BY 4.0; model outputs and annotations from measured seed-42 runs",
+    "operation": "Two unchanged report grids arranged vertically; English headings added"
+  }
+}

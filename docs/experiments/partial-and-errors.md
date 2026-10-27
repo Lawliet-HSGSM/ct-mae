@@ -1,6 +1,6 @@
 # CT-MAE follow-up: partial adaptation and error analysis
 
-The user authorized execution on 2026-10-23. Preserve the completed seed-42
+Completed study initiated on 2026-10-23. Preserve the completed seed-42
 baseline and official train/validation/test splits. Use its exact MAE checkpoint
 and the same 1,728 labeled indices; do not repeat pretraining.
 
@@ -41,13 +41,13 @@ part of this controlled follow-up. Visual appearance alone does not establish
 that texture caused a classification error.
 # Reproducing the report
 
-From this worktree, after collecting the completed Kaggle output under
-`D:\Development\SchoolProject\ct-mae\reports\followup\artifacts`:
+From the repository root, after collecting the completed Kaggle output under
+`reports/followup/artifacts`:
 
 ```powershell
 $env:PYTHONPATH = (Join-Path (Get-Location) 'src')
-& '..\dataset\.venv\Scripts\python.exe' -m ct_mae.followup_report --baseline '../dataset/reports/kaggle-v7' --followup '../../reports/followup/artifacts' --archive '../../data/organamnist_128.npz' --output '../../reports/followup'
-& '..\dataset\.venv\Scripts\python.exe' scripts/check_followup_report.py '../../reports/followup/followup_report.html' --output '../../reports/followup/browser-qa'
+uv run --extra train python -m ct_mae.followup_report --baseline 'reports/baseline' --followup 'reports/followup/artifacts' --archive 'data/organamnist_128.npz' --output 'reports/followup'
+uv run --extra train python scripts/check_followup_report.py 'reports/followup/followup_report.html' --output 'reports/followup/browser-qa'
 ```
 
 The report includes exact PCA/SVD bases and test indices, a frozen-parameter audit,
@@ -83,7 +83,7 @@ at epoch 25 using validation macro-F1; the full run still completed 100 epochs.
 
 W&B: https://wandb.ai/lawlietwilllucky-nguyen-thang/ct-mae/runs/4ru5zzt8
 
-Report: `D:\Development\SchoolProject\ct-mae\reports\followup\followup_report.html`.
+Report: `reports/followup/followup_report.html`.
 The same directory contains Markdown, 19 PNG figures, structured measurements,
 projection bases, observation notes, and raw collected artifacts. HTML embeds its
 data/images and is self-contained; large features/checkpoints stay separate.

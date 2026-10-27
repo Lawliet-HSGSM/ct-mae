@@ -62,7 +62,7 @@ Thêm `--resume` khi tạo script Kaggle để tải artifact đúng protocol r�
 
 ## Interface và thao tác lại
 
-Từ worktree, dùng `uv run --extra train python -m ct_mae.run --help`.
+Từ thư mục gốc repository, dùng `uv run --extra train python -m ct_mae.run --help`.
 Các stage: `prepare`, `scratch`, `pretrain`, `linear`, `finetune`, `evaluate`,
 `report`, `all`. `all` chạy scratch → pretrain → linear → finetune → test/report.
 `--config` chọn recipe JSON, `--output` chọn experiment riêng. `--resume` dùng

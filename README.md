@@ -1,215 +1,186 @@
-# CT MAE
+# CT-MAE
 
-Học biểu diễn trên crop CT 2D bằng Transformer encoder và masked autoencoding.
-Người dùng chủ động chốt thiết kế; agent implement và kiểm thử từng phần đã thống nhất.
+[![CPU checks](https://github.com/Lawliet-HSGSM/ct-mae/actions/workflows/ci.yml/badge.svg)](https://github.com/Lawliet-HSGSM/ct-mae/actions/workflows/ci.yml)
 
-Đã implement pipeline dữ liệu, asymmetric MAE, ba nhánh phân loại, checkpoint/resume,
-W&B và báo cáo HTML/Markdown. Trạng thái và kết quả train thực tế nằm trong báo cáo;
-smoke test được lưu riêng, không dùng thay cho kết quả baseline đầy đủ.
+**Label-efficient organ classification on abdominal CT crops with masked autoencoders.**
 
-## Thiết kế đầu vào đã thống nhất
+This project asks whether self-supervised pretraining helps when only a small
+fraction of training images have usable classification labels. A compact Vision
+Transformer learns to reconstruct masked OrganAMNIST crops, then transfers to
+11-class organ classification through linear probing, partial or full fine-tuning.
 
-- Dataset: OrganAMNIST 2D, bản chính thức 128×128, một kênh xám.
-- Patch size khởi đầu: 8×8, tạo lưới 16×16 = 256 patch mỗi ảnh.
-- Người dùng chọn 128 vì bản 64 có cảm giác quá nhỏ sau khi xem ảnh;
-  patch size có thể thay đổi trong các thí nghiệm sau.
-- Tensor float32 `[B,1,128,128]`, pixel / 255; affine nhẹ ±5°, dịch tối đa 5%.
-- MAE che 75% patch, encoder 12 blocks × 384 chiều, decoder 2 blocks × 128 chiều.
-- SSL dùng toàn bộ ảnh train; cả ba nhánh phân loại dùng chung 1.728 ảnh có nhãn.
-- Seed 42; pretrain 200 epochs, mỗi nhánh phân loại 100 epochs; chọn checkpoint bằng validation.
+With **1,728 labeled training images (about 5%)**, MAE full fine-tuning reached
+**88.75% test accuracy**, versus **81.36%** for the same classifier trained from
+random initialization. These are measured results from **one seed**, with additional
+unlabeled training data and pretraining compute available to the SSL methods.
 
-Protocol, cách chạy và giới hạn đánh giá được ghi trong [BASELINE.md](BASELINE.md).
-Recipe máy đọc được nằm ở `src/ct_mae/baseline.json`. Báo cáo khám phá vẫn giữ pixel gốc.
+![Test results at two label budgets](docs/assets/label_budgets.png)
 
-## Chạy pipeline baseline
+## Results
 
-```powershell
-Set-Location 'D:\Development\SchoolProject\ct-mae\.worktrees\dataset'
-uv sync --extra train --group dev
-uv run --extra train python -m ct_mae.run --stage prepare --data-dir 'D:\Development\SchoolProject\ct-mae\data' --output reports/baseline
-uv run --extra train python -m ct_mae.kaggle --smoke --output work/kaggle_smoke.py
-uv run --extra train python -m ct_mae.kaggle --output work/kaggle_baseline.py
+Each classifier trains for 100 epochs. Checkpoints maximize validation macro-F1;
+test metrics are computed afterward on all 17,778 official test images.
+
+| Method | Trainable parameters | 5% accuracy | 5% macro-F1 | 10% accuracy | 10% macro-F1 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Supervised from scratch | 21.32M | 81.36% | 81.17% | 84.98% | 84.92% |
+| SSL linear probing | 4,235 | 83.81% | 83.13% | 86.18% | 85.85% |
+| SSL full fine-tuning | 21.32M | 88.75% | 88.04% | 91.66% | 91.17% |
+| SSL partial: last 3 blocks | 5.33M | 89.17% | 88.55% | 91.00% | 90.53% |
+
+The 10% subset contains the entire 5% subset. Equal epochs give 10% twice the
+planned downstream optimizer updates, so this table does not isolate label count
+from optimization budget. All SSL classifiers reuse the same MAE checkpoint;
+scratch receives no pretraining.
+
+Follow-up experiments also compare confusion-aware batches, class-weighted
+cross-entropy and supervised contrastive learning. At **1,350 continuation updates**,
+the validation-selected full/CE variant improves from **89.09% accuracy at 5%** to
+**90.87% at 10%**. SupCon reaches a higher test score in one variant, but does not
+replace the variant selected by validation.
+
+See [findings and limitations](docs/RESULTS.md), [all 28 runs as CSV](docs/results/metrics.csv),
+and the [audited result snapshot](docs/results/results.json).
+
+## Method
+
+```mermaid
+flowchart LR
+    A[All 34,561 training crops<br/>Ignore organ labels] --> B[8 × 8 patches<br/>Mask 75%]
+    B --> C[ViT encoder<br/>64 visible patches + CLS]
+    C --> D[Small Transformer decoder<br/>Predict masked pixels with MSE]
+    C --> E[Reuse encoder weights]
+    F[1,728 or 3,456 labeled crops<br/>All 256 patches visible] --> J[Classification encoder]
+    E --> J
+    J --> G[Mean-pooled patch features<br/>384 dimensions]
+    G --> H[Linear head<br/>11 organ classes]
 ```
 
-Hai script cuối là bản đóng gói source/tests để submit qua **Kaggle MCP** vào notebook
-[CT MAE Baseline](https://www.kaggle.com/code/lawlietwilllucky/ct-mae-baseline), private,
-GPU và Internet bật. Dữ liệu được tải trực tiếp từ nguồn chính thức và kiểm MD5.
-W&B dùng project `ct-mae`, đọc secret label `WANDB_API_KEY_THANG` đã cấp quyền trong Kaggle.
-Chỉ label được lưu trong config; giá trị key không nằm trong repo hay script đóng gói.
-Script production mới tự chạy và xác minh smoke trước khi bắt đầu full recipe;
-không cần submit hai job GPU riêng. Bản `--smoke` chỉ chạy chẩn đoán.
+| Component | Configuration |
+| --- | --- |
+| Input | Grayscale `float32`, `[B, 1, 128, 128]`, pixels divided by 255 |
+| Patches | `8 × 8`; 256 patches/image; 64 visible during pretraining |
+| Encoder | 12 Transformer blocks, width 384, 6 attention heads |
+| Decoder | 2 blocks, width 128, 4 heads; linear pixel prediction |
+| Position encoding | Fixed 2D sine–cosine; MLP ratio 4 |
+| Pretext objective | MSE on masked patches only; no pixel-target normalization |
+| Classification | Mean of all patch tokens → `Linear(384, 11)`; cross-entropy |
+| Augmentation | Rotation ±5°, translation ≤5%, bilinear interpolation, zero fill |
+| Initialization | Random weights with MAE-style initialization; no ImageNet weights |
 
-Windows dùng PyTorch CPU trong venv để kiểm thử. Notebook giữ CUDA runtime của Kaggle,
-ghi phiên bản thực tế vào `environment.json` và metadata từng run.
+Linear probing freezes the entire encoder in evaluation mode. Partial fine-tuning
+trains the last 3 blocks, final LayerNorm and classifier. Full fine-tuning trains
+the entire encoder and classifier. Fixed position embeddings remain fixed throughout.
+
+Pretraining runs 200 epochs with AdamW, peak LR `1.5e-4`, effective batch 256,
+10-epoch warmup and cosine decay. Downstream effective batch is 64, with peak LR
+`3e-4` for scratch/full/partial and `1e-3` for the linear probe. The
+[configuration](src/ct_mae/baseline.json) and [protocol](docs/experiments/baseline.md)
+record the remaining settings. This is a smaller adaptation of MAE, not a reproduction
+of its original ImageNet training setup.
+
+![Actual training and validation curves](docs/assets/learning_curves.png)
+
+## Data and evaluation
+
+The official **OrganAMNIST128** release contains 34,561 train, 6,491 validation and
+17,778 test grayscale crops across 11 classes. It provides organ labels for every
+split; labels outside the chosen training subset are ignored during supervised training.
+All training images contribute to MAE pretraining. Validation/test images do not.
+
+The label budgets refer to **training labels only**. All validation labels remain
+available for checkpoint selection and later experiment design. Subsets are
+stratified, deterministic and published as [5% indices](docs/results/subset_1728.json)
+and [10% indices](docs/results/subset_3456.json).
+
+Official splits are preserved. The source dataset uses different CT scans across
+the splits; the NPZ release does not include per-image scan/patient IDs. Thousands
+of crops therefore cannot be treated as thousands of independent patients.
+The 128px images come from the official MedMNIST+ release, not upsampled 28px inputs.
+See the [official metadata](https://github.com/MedMNIST/MedMNIST/blob/main/medmnist/info.py)
+and [generation notes](https://github.com/MedMNIST/MedMNIST/blob/main/on_medmnist_plus.md).
+
+The analysis covers per-organ precision/recall/F1, confusion matrices, paired
+corrected/new errors, train-fitted PCA/SVD, and the validation–test gap. It does
+not establish blur, crop quality or anatomical texture as the cause of an error.
+Test examples were inspected before later studies, so follow-up findings are
+**exploratory**, not an untouched confirmatory evaluation. No clinical validation
+was performed.
+
+## Quick start
+
+Run these commands from the repository root with **Python 3.12** and
+[uv](https://docs.astral.sh/uv/). Data exploration needs no GPU or W&B account.
 
 ```powershell
-uv run --extra train python -m ct_mae.run --stage report --output reports/baseline
+git clone https://github.com/Lawliet-HSGSM/ct-mae.git
+cd ct-mae
+uv sync --locked --group dev
+uv run python -m ct_mae.download --data-dir data --sizes 128
+uv run python -m ct_mae.explore --data-dir data --sizes 128 --output reports/exploration
+```
+
+Open `reports/exploration/explorer.html` in a browser. The download is about 708 MB;
+the loader verifies the official MD5 and reuses a valid local copy. Larger local
+storage is needed for unpacked arrays, checkpoints and experiment outputs.
+
+For CPU checks and input preparation:
+
+```powershell
+uv sync --locked --extra train --group dev
 uv run --extra train pytest -q
 uv run --extra train ruff check .
-uv run --extra train python scripts/check_training_report.py reports/baseline/training_report.html
+uv run --extra train python -m ct_mae.run --stage prepare --device cpu --wandb-mode disabled --data-dir data --output reports/local-check
 ```
 
-## Repository và worktree
+Preparation writes input previews, the labeled subset and model parameter counts
+without training. Windows uses CPU PyTorch through the configured uv index. The
+completed training experiments used one Kaggle Tesla T4 with FP16 AMP. Smoke mode
+keeps the full architecture while shortening epochs and data; a GPU is recommended.
 
-- Repository: `D:\Development\SchoolProject\ct-mae`
-- Worktree: `D:\Development\SchoolProject\ct-mae\.worktrees\dataset`
-- Branch triển khai: `feature/mae-baseline`
-- Raw data dùng chung: `D:\Development\SchoolProject\ct-mae\data` (không đưa vào Git).
-
-`SPEC.md` mô tả phạm vi và điều kiện nghiệm thu của milestone này.
-
-## Chạy lại báo cáo trên Windows / PowerShell
-
-Python 3.12 và `uv`. Các package được khóa trong `uv.lock`; phần khám phá dữ liệu chỉ
-cần NumPy, Pillow và Matplotlib. Đọc trực tiếp file NPZ chính thức, không cần cài
-PyTorch hay huấn luyện model để xem ảnh.
+For the full workflow, GPU setup, checkpoint reuse and offline reports, follow
+[reproduction instructions](docs/REPRODUCING.md). To redraw the public charts
+using only the committed result snapshot:
 
 ```powershell
-Set-Location 'D:\Development\SchoolProject\ct-mae\.worktrees\dataset'
-uv sync --locked --python 3.12 --group dev
-uv run python -m ct_mae.download --data-dir 'D:\Development\SchoolProject\ct-mae\data' --sizes 28 64 128
-uv run python -m ct_mae.explore --data-dir 'D:\Development\SchoolProject\ct-mae\data' --sizes 28 64 128 --output reports
-Invoke-Item -LiteralPath '.\reports\explorer.html'
+uv run python scripts/publish_results.py
 ```
 
-Download dùng URL, dung lượng và MD5 chính thức. File cache hợp lệ được dùng lại;
-file không khớp checksum sẽ báo lỗi. Bản 224 được hỗ trợ bằng `--sizes 224`, nhưng
-chưa tải trong lần khám phá này. Ba bản 28/64/128 tổng cộng khoảng 947 MB file nén.
+## Repository layout
 
-Để đổi mẫu minh họa: thêm `--seed 7 --samples-per-class 8` khi sinh báo cáo.
-Mặc định đóng gói 4 mẫu mỗi lớp ở mỗi split; thống kê vẫn tính trên toàn bộ dữ liệu.
-
-## Những gì có trong báo cáo
-
-- `explorer.html`: mở offline, chọn split/cơ quan/mẫu; so cùng index ở các resolution.
-- Hai chế độ hiển thị: cùng khung 224 CSS px hoặc một pixel dữ liệu / một CSS pixel.
-- `organ_samples.png`: ví dụ của cả 11 lớp có nhãn.
-- `resolution_comparison.png`: cùng mẫu tại các resolution, hiển thị bằng khung bằng nhau.
-- `dataset_overview.png`: phân bố lớp và histogram pixel của train.
-- `dataset_summary.json`, `split_summary.csv`, `class_counts.csv`: số đo máy đọc được.
-
-Ảnh minh họa giữ nguyên pixel uint8 và PNG lossless, dùng grayscale cố định 0..255.
-Phóng to chỉ xảy ra khi hiển thị; không fit hay áp dụng preprocessing cho model.
-
-## Các đặc tính đã đo từ file
-
-Mỗi bản có 34.561 ảnh train, 6.491 validation và 17.778 test. Mọi ảnh có một nhãn
-supervised thuộc 11 lớp. SSL sẽ bỏ qua nhãn trong pretraining; downstream dùng lại
-nhãn của tập con được chọn sau này.
-
-Tại mỗi resolution, toàn bộ ảnh có cùng H×W, một kênh, dtype uint8 và khoảng pixel
-0..255. 128×128 có 4 lần số pixel và dung lượng array uint8 so với 64×64. Nhãn theo
-index khớp hoàn toàn giữa ba bản đã tải. Quy trình nhà phát hành xác định chúng là
-các resize của cùng crop nguồn; đối chiếu nhãn không phải kiểm chứng độc lập về
-nguồn scan của từng ảnh.
-
-Ảnh đã được abdominal windowing, crop và resize từ CT nguồn. Metadata theo từng
-ảnh không có scan ID, bounding box gốc, HU gốc hay spacing, nên không suy ra kích
-thước cơ quan theo mm hoặc coi hàng chục nghìn crop là số bệnh nhân độc lập.
-Giữ nguyên split chính thức. Nếu sau này chọn mean/std cho model, chỉ fit trên train.
-
-## Kiểm tra
-
-```powershell
-uv run --extra train pytest -q
-uv run --extra train ruff check .
-uv run python scripts/check_report.py reports/explorer.html --screenshot reports/browser_preview.png
+```text
+src/ct_mae/             Models, data, training, checkpointing, analysis and reports
+tests/                 Data/model/loss, accumulation, freezing and resume checks
+scripts/               Report browser checks and public-result export
+docs/RESULTS.md         Findings, comparisons and interpretation limits
+docs/REPRODUCING.md     Commands and expected artifact layout
+docs/experiments/      Detailed protocols and experiment records
+docs/results/          Scalar histories, metrics, provenance hashes and train indices
+docs/assets/           Figures from completed runs
 ```
 
-Browser check dùng Microsoft Edge đã cài, chạy headless bằng Playwright. Nó kiểm tra
-chọn class/split/mẫu, kích thước ảnh gốc, hiển thị 1:1, bàn phím và overflow tại các
-viewport 320/768/1024/1440 px. Data, venv, work files và reports được loại khỏi Git.
+Raw data, model weights, W&B logs, signed download manifests and large generated
+HTML reports stay outside Git. **Trained checkpoints are not distributed in this
+repository**; inference from the reported models requires the original artifacts
+or retraining. The committed snapshots allow inspection and chart reproduction,
+not independent rerunning of model inference.
 
-## Nguồn và ghi công
+## References and attribution
 
-- [MedMNIST](https://medmnist.com/)
-- [Official data record](https://zenodo.org/records/10519652)
-- [Metadata](https://github.com/MedMNIST/MedMNIST/blob/main/medmnist/info.py)
-- [Cách tạo MedMNIST+](https://github.com/MedMNIST/MedMNIST/blob/main/on_medmnist_plus.md)
+- He et al., **Masked Autoencoders Are Scalable Vision Learners**, CVPR 2022.
+  [Paper](https://arxiv.org/abs/2111.06377) · [Reference code](https://github.com/facebookresearch/mae)
+- Khosla et al., **Supervised Contrastive Learning**, NeurIPS 2020.
+  [Paper](https://arxiv.org/abs/2004.11362) · [Reference code](https://github.com/HobbitLong/SupContrast)
+- Yang et al., **MedMNIST v2**, Scientific Data 2023.
+  [Paper](https://doi.org/10.1038/s41597-022-01721-8) · [Dataset](https://zenodo.org/records/10519652)
+- Bilic et al., **The Liver Tumor Segmentation Benchmark (LiTS)**, Medical Image Analysis 2023.
+  [Paper](https://doi.org/10.1016/j.media.2022.102680)
 
-Dataset: CC BY 4.0. Khi công bố kết quả, trích dẫn MedMNIST v2 (Yang et al.,
-Scientific Data, 2023) và các công trình dữ liệu nguồn theo hướng dẫn MedMNIST.
+MAE architecture, masking and initialization follow the reference implementation;
+the grayscale model size, training budget and downstream studies are project
+adaptations. Loss, data, training, auditing and reporting code are implemented here.
+See [third-party notices](THIRD_PARTY_NOTICES.md) and [BibTeX references](docs/references.bib).
 
-## Phân tích sau baseline
-
-[FOLLOWUP.md](FOLLOWUP.md) mô tả thí nghiệm mở 3 block cuối từ cùng MAE checkpoint,
-phân tích lỗi từng cơ quan/ảnh và PCA/SVD của encoder trên test. Báo cáo thực tế
-nằm ở `D:\Development\SchoolProject\ct-mae\reports\followup\followup_report.html`;
-mở offline, có bộ lọc worst cases, biểu đồ tương tác và 19 hình PNG xuất riêng.
-Kết quả và giới hạn một seed được ghi trong tài liệu; dữ liệu, checkpoint và
-report không đưa vào Git.
-
-## So sánh 5% và 10% nhãn
-
-[LABEL_STUDY.md](LABEL_STUDY.md) ghi protocol và kết quả của bốn nhánh ở mốc
-3.456 ảnh có nhãn, chứa toàn bộ tập 1.728 ảnh cũ. Mỗi nhánh chạy 100 epoch,
-seed 42, tái sử dụng chính MAE checkpoint đã có; không train lại MAE.
-
-Ở 10%, supervised từ đầu đạt 84,98% Accuracy, SSL linear đạt 86,18%,
-full fine-tuning đạt 91,66% và partial đạt 91,00%. Mốc 5% partial nhỉnh hơn full;
-ở 10% thứ hạng đảo lại. Đây là kết quả một seed, cùng số epoch nhưng khác số
-optimizer updates. Báo cáo có bảng từng organ, confusion matrix, đường học,
-ảnh được sửa/ảnh mới sai và các giới hạn diễn giải.
-
-Báo cáo offline:
-`D:\Development\SchoolProject\ct-mae\reports\label-study\label_efficiency_report.html`.
-Bản Markdown, JSON và các hình PNG nằm cùng thư mục.
-
-## Đối chiếu crop cùng organ
-
-[CROP_REVIEW.md](CROP_REVIEW.md) ghi cách kiểm tra pixel gốc và chọn ảnh cùng nhãn,
-có bố cục tương tự nhưng kết quả dự đoán khác nhau. Trang offline
-`reports/followup/crop_review.html` có 8 ảnh tham chiếu thận phải, ảnh đúng/được
-sửa đúng để đối chiếu, chế độ pixel 1:1 và ba resolution 28/64/128. Dùng lại các
-prediction đã có; đây là phân tích hình ảnh, chưa xác định nguyên nhân lỗi.
-
-Đối chiếu riêng ảnh test #10267 với lớp tụy:
-
-```powershell
-uv run python scripts/visualize_pancreas.py --root .
-uv run python scripts/check_pancreas_review.py reports/followup/pancreas_review.html
-```
-
-Trang `reports/followup/pancreas_review.html` có 15 mẫu ngẫu nhiên seed 42,
-15 mẫu gần tham chiếu theo MSE bố cục pixel và toàn bộ 1.622 ảnh test mang nhãn
-tụy. Hiển thị nhãn dataset cùng dự đoán của bốn model 5%; PNG giữ nguyên pixel.
-Hai lưới ảnh lớn nằm trong `reports/followup/figures/pancreas_*_10267.png`.
-
-## Học tiếp classifier: sampler, trọng số và SupCon
-
-[ADAPTATION.md](ADAPTATION.md) ghi protocol và kết quả của mười lượt học tiếp:
-năm biến thể cho full và năm cho partial, 50 epoch mỗi lượt, seed 42, cùng 1.728
-nhãn gốc. So sánh CE học tiếp, cách ghép batch, trọng số CE theo organ và SupCon;
-giữ checkpoint nguồn nếu validation không được cải thiện.
-
-Validation chọn full/CE ở epoch 13: Accuracy 88,75%→89,09%, macro-F1 88,04%→88,68%.
-Partial giữ nguồn 89,17% Accuracy; trong lượt này trọng số/SupCon chưa tạo ra
-phương án tốt hơn theo validation. Báo cáo đối chiếu cả ảnh được sửa và ảnh mới
-sai, F1 từng organ, confusion matrix, calibration và đặc trưng encoder.
-
-Báo cáo offline: `reports/adaptation-study/adaptation_report.html`.
-Artifacts đã tải và kiểm tra độc lập; W&B ghi đủ mười run. Kết quả một seed
-được trình bày cùng giới hạn, không chọn lại mô hình theo test.
-
-## Đối chiếu train, augmentation, validation và test
-
-[SPLIT_REVIEW.md](SPLIT_REVIEW.md) ghi phương pháp và kết quả kiểm tra khoảng cách
-validation–test. Trang `reports/split-review/split_review.html` có bốn cột cùng
-organ: train gốc, cùng ảnh sau affine, validation và test; có bộ lọc nguồn train,
-ảnh đúng/sai và kích thước xem. Nguồn prediction là hai classifier 5% ban đầu.
-
-Chênh lệch tỷ trọng organ chỉ đóng góp khoảng +0,1 điểm Accuracy; phần giảm gần
-9 điểm nằm ở recall trong từng organ trên test. Đặc tính pixel và các ví dụ giúp
-kiểm tra giả thuyết, chưa xác định được nguyên nhân là độ mờ, crop hay vùng tối.
-Trang mở offline, giữ pixel nguồn và có kiểm tra trình duyệt cùng đối chiếu PNG.
-
-[ADAPTATION_10PCT.md](ADAPTATION_10PCT.md) mô tả lượt học tiếp trên 3.456 nhãn,
-chứa toàn bộ 1.728 nhãn cũ, giữ ngân sách 1.350 updates mỗi nhánh. Các quan sát
-test trong trang đối chiếu không thay đổi thiết kế đã gửi của lượt này.
-
-Lượt 10% đã hoàn tất: trong nhánh full, validation chọn CE học tiếp ở epoch 6,
-đạt **90,87% Accuracy / 90,26% macro-F1**, so với **89,09% / 88,68%** ở lượt
-5% với cùng 1.350 updates. Partial giữ checkpoint nguồn. Báo cáo riêng nằm ở
-`reports/adaptation-10pct/adaptation_report.html`, gồm đối chiếu từng ảnh giữa
-hai mức nhãn. SupCon có tín hiệu test tốt hơn sampler đơn thuần trong lượt này,
-nhưng không thay thế lựa chọn theo validation và chưa được xác nhận qua nhiều seed.
+Project code and original project material use [CC BY-NC 4.0](LICENSE), with
+upstream notices retained. OrganAMNIST images and their reproductions retain the
+dataset's **CC BY 4.0** attribution; they are not relicensed under the code license.

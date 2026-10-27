@@ -1,6 +1,6 @@
 # Label budget extension: 5% → 10%
 
-The user authorized an additional label-budget experiment on 2026-10-23.
+Additional label-budget experiment initiated on 2026-10-23.
 
 - Official OrganAMNIST128 splits unchanged; seed42, all recipes unchanged.
 - 10% means 3,456 labeled train images. Extend the original 1,728 indices by
@@ -27,7 +27,7 @@ checks remain intact. No modified/fabricated pretraining metadata is used.
 
 ## Local collection and report
 
-Worktree: `D:\Development\SchoolProject\ct-mae\.worktrees\labels`.
+Run commands from the repository root.
 Training commit: `5b93a45`; submitted bundle SHA-256:
 `2d98286ddf1f2a9143462d044d6956f8fa6f278f4b721651c17c82102ecb5158`.
 
@@ -39,9 +39,9 @@ Do not commit temporary signed URLs.
 
 ```powershell
 $env:PYTHONPATH = (Join-Path (Get-Location) 'src')
-& '..\dataset\.venv\Scripts\python.exe' -m ct_mae.label_collect --manifest work/kaggle_v9_manifest.json --expected-subset work/expected_subset.json --baseline ../dataset/reports/kaggle-v7 --output ../../reports/labels10pct/artifacts
-& '..\dataset\.venv\Scripts\python.exe' -m ct_mae.label_report --baseline5 ../dataset/reports/kaggle-v7 --partial5 ../../reports/followup/artifacts --labels10 ../../reports/labels10pct/artifacts --archive ../../data/organamnist_128.npz --output ../../reports/label-study
-& '..\dataset\.venv\Scripts\python.exe' scripts/check_label_report.py ../../reports/label-study/label_efficiency_report.html --output ../../reports/label-study/browser-qa
+uv run --extra train python -m ct_mae.label_collect --manifest work/kaggle_v9_manifest.json --expected-subset work/expected_subset.json --baseline reports/baseline --output reports/labels10pct/artifacts
+uv run --extra train python -m ct_mae.label_report --baseline5 reports/baseline --partial5 reports/followup/artifacts --labels10 reports/labels10pct/artifacts --archive data/organamnist_128.npz --output reports/label-study
+uv run --extra train python scripts/check_label_report.py reports/label-study/label_efficiency_report.html --output reports/label-study/browser-qa
 ```
 
 Inspect actual class/paired-case figures, put evidence-grounded notes in

@@ -4,7 +4,7 @@
 
 Create a reproducible, read-only inspection of the official 2D OrganAMNIST data.
 Compare the same samples at 28, 64 and 128 pixels without selecting model input
-preprocessing. The user has requested implementation of this milestone.
+preprocessing. This milestone preceded model training.
 
 ## Acceptance
 
@@ -27,8 +27,8 @@ Source lives in `src/ct_mae/`, behavior tests in `tests/`, generated outputs in
 
 ```powershell
 uv sync --python 3.12 --group dev
-uv run python -m ct_mae.download --data-dir ..\..\data --sizes 28 64 128
-uv run python -m ct_mae.explore --data-dir ..\..\data --sizes 28 64 128 --output reports
+uv run python -m ct_mae.download --data-dir data --sizes 28 64 128
+uv run python -m ct_mae.explore --data-dir data --sizes 28 64 128 --output reports
 uv run pytest
 uv run ruff check .
 ```
@@ -61,6 +61,6 @@ size, giving 256 patches per image. The smaller 64×64 images looked too small
 to the user; patch size remains adjustable in later experiments.
 
 The user subsequently accepted and requested implementation of the complete
-baseline protocol in `BASELINE.md`, with its machine-readable recipe at
+baseline protocol in `baseline.md`, with its machine-readable recipe at
 `src/ct_mae/baseline.json`. This extends the project after the explorer milestone;
 the explorer continues to display the original data without training transforms.

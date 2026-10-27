@@ -76,7 +76,7 @@ independence, crop-cause attribution or new test-based training decisions follow
 
 ```powershell
 $env:PYTHONPATH = Join-Path (Get-Location) 'src'
-uv run --extra train python -m ct_mae.split_review --archive data/organamnist_128.npz --subset .worktrees/adaptation10/work/adaptation-sources/subset.json --artifacts reports/adaptation-study/artifacts --output reports/split-review
+uv run --extra train python -m ct_mae.split_review --archive data/organamnist_128.npz --subset work/adaptation-sources/subset.json --artifacts reports/adaptation-study/artifacts --output reports/split-review
 uv run --extra train python scripts/check_split_review.py reports/split-review/split_review.html --output reports/split-review/browser
 ```
 

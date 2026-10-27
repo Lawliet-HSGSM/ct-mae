@@ -89,15 +89,15 @@ available to establish independence of visually similar crops.
 
 ## Artifacts and reproduction
 
-Report: `D:/Development/SchoolProject/ct-mae/reports/adaptation-study/adaptation_report.html`.
+Report: `reports/adaptation-study/adaptation_report.html`.
 The matching Markdown, JSON, original-pixel example PNGs, plots and browser
 verification sit beside it. `artifacts/` contains best/last checkpoints, predictions,
 run histories, actual index traces, W&B completion proofs and collection audits.
 
 ```powershell
-Set-Location 'D:\Development\SchoolProject\ct-mae'
+# Run from the repository root
 $env:PYTHONPATH = Join-Path (Get-Location) 'src'
-uv run --extra train python -m ct_mae.adaptation_collect --verify-only --sources .worktrees/adaptation/work/adaptation-sources --archive data/organamnist_128.npz --output reports/adaptation-study/artifacts
+uv run --extra train python -m ct_mae.adaptation_collect --verify-only --sources work/adaptation-sources --archive data/organamnist_128.npz --output reports/adaptation-study/artifacts
 uv run --extra train python -m ct_mae.adaptation_report --artifacts reports/adaptation-study/artifacts --archive data/organamnist_128.npz --output reports/adaptation-study
 uv run --extra train python scripts/check_adaptation_report.py reports/adaptation-study/adaptation_report.html --output reports/adaptation-study/browser
 ```
